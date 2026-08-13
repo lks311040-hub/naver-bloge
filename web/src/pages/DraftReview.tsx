@@ -19,6 +19,11 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "실패",
 };
 
+const POST_TYPE_LABEL: Record<string, string> = {
+  promotional: "홍보성",
+  informational: "정보성",
+};
+
 export default function DraftReview() {
   const { postId } = useParams<{ postId: string }>();
   const queryClient = useQueryClient();
@@ -83,9 +88,10 @@ export default function DraftReview() {
     <div>
       <h2>초안 검토</h2>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <span className="status-pill">{POST_TYPE_LABEL[post.postType] ?? post.postType}</span>
         <span className="status-pill">{STATUS_LABEL[post.status] ?? post.status}</span>
         {post.charCount != null && <span style={{ color: "#6b7280", fontSize: 13 }}>{post.charCount}자</span>}
-        {post.keywordCount != null && (
+        {post.postType === "promotional" && post.keywordCount != null && (
           <span style={{ color: "#6b7280", fontSize: 13 }}>키워드 {post.keywordCount}회</span>
         )}
       </div>

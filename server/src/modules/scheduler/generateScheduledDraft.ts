@@ -11,6 +11,10 @@ import { createAndGenerate } from "../posts/service.js";
 export async function generateScheduledDraft(schedule: ScheduleRecord): Promise<void> {
   await createAndGenerate(
     {
+      // Scheduling is scoped to 홍보성 posts only for now — informational
+      // posts need a human picking a topic that actually fits a real
+      // event/issue, which doesn't suit a recurring unattended cron job.
+      postType: "promotional",
       title: schedule.title,
       keyword: schedule.keyword,
       highlightContent: schedule.highlightContent,

@@ -1,9 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
 import { getDb } from "../../db/connection.js";
-import type { Block, PostRecord, PostRequest, PostStatus, PostSource } from "@app/shared";
+import type { Block, PostRecord, PostRequest, PostStatus, PostSource, PostType } from "@app/shared";
 
 interface PostRow {
   id: string;
+  post_type: string;
   title: string;
   keyword: string;
   highlight_content: string;
@@ -26,6 +27,7 @@ interface PostRow {
 function rowToRecord(row: PostRow): PostRecord {
   return {
     id: row.id,
+    postType: row.post_type as PostType,
     title: row.title,
     keyword: row.keyword,
     highlightContent: row.highlight_content,
@@ -46,7 +48,7 @@ function rowToRecord(row: PostRow): PostRecord {
   };
 }
 
-const SELECT_COLUMNS = `id, title, keyword, highlight_content, prewritten_content,
+const SELECT_COLUMNS = `id, post_type, title, keyword, highlight_content, prewritten_content,
   related_post_title, related_post_url, status, content_blocks, char_count,
   keyword_count, qa_warning, source, schedule_id, published_url, published_at, created_at, updated_at`;
 
@@ -58,11 +60,11 @@ export function createPost(
   getDb()
     .prepare(
       `INSERT INTO posts (
-         id, title, keyword, highlight_content, prewritten_content,
+         id, post_type, title, keyword, highlight_content, prewritten_content,
          related_post_title, related_post_url, status, content_blocks,
          source, schedule_id, created_at, updated_at
        ) VALUES (
-         @id, @title, @keyword, @highlightContent, @prewrittenContent,
+         @id, @postType, @title, @keyword, @highlightContent, @prewrittenContent,
          @relatedPostTitle, @relatedPostUrl, @status, '[]',
          @source, @scheduleId, datetime('now'), datetime('now')
        )`,
@@ -90,6 +92,9 @@ export function listPosts(status?: PostStatus): PostRecord[] {
 }
 
 export interface CompleteGenerationInput {
+  /** Always written — a no-op overwrite with the same value for 홍보성
+   * (title was fixed by the user), or the AI-generated title for 정보성. */
+  title: string;
   blocks: Block[];
   charCount: number;
   keywordCount: number;
@@ -103,6 +108,7 @@ export function completeGeneration(id: string, input: CompleteGenerationInput): 
     .prepare(
       `UPDATE posts SET
          status = 'review_pending',
+         title = @title,
          content_blocks = @blocks,
          char_count = @charCount,
          keyword_count = @keywordCount,
@@ -114,6 +120,7 @@ export function completeGeneration(id: string, input: CompleteGenerationInput): 
     )
     .run({
       id,
+      title: input.title,
       blocks: JSON.stringify(input.blocks),
       charCount: input.charCount,
       keywordCount: input.keywordCount,
@@ -189,4 +196,26 @@ export function getLatestPublished(): { title: string; url: string } | undefined
     )
     .get() as { title: string; published_url: string } | undefined;
   return row ? { title: row.title, url: row.published_url } : undefined;
+}
+
+/**
+ * Recent same-type posts (any non-failed status — even a still-in-review
+ * draft counts, since the point is "don't retread ground the AI itself just
+ * covered"), for feeding into the prompt as "avoid repeating these already-
+ * covered angles/stories". Returns a short plain-text snippet per post
+ * (paragraph text only, markup stripped by the caller if needed).
+ */
+export function getRecentPostsForDedup(
+  postType: PostType,
+  opts: { excludeId?: string; limit?: number },
+): Array<{ title: string; blocks: Block[] }> {
+  const limit = opts.limit ?? 5;
+  const rows = getDb()
+    .prepare(
+      `SELECT title, content_blocks FROM posts
+       WHERE post_type = ? AND status != 'failed' AND id != ?
+       ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(postType, opts.excludeId ?? "", limit) as Array<{ title: string; content_blocks: string }>;
+  return rows.map((r) => ({ title: r.title, blocks: JSON.parse(r.content_blocks) as Block[] }));
 }

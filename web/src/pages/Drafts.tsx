@@ -13,6 +13,11 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "실패",
 };
 
+const POST_TYPE_LABEL: Record<string, string> = {
+  promotional: "홍보성",
+  informational: "정보성",
+};
+
 export default function Drafts() {
   const postsQuery = useQuery({
     queryKey: ["posts"],
@@ -35,7 +40,10 @@ export default function Drafts() {
           {postsQuery.data?.map((post) => (
             <tr key={post.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
               <td style={{ padding: "10px 4px" }}>
-                <Link to={`/drafts/${post.id}`}>{post.title}</Link>
+                <span className="status-pill" style={{ marginRight: 8 }}>
+                  {POST_TYPE_LABEL[post.postType] ?? post.postType}
+                </span>
+                <Link to={`/drafts/${post.id}`}>{post.title || "(제목 생성 중...)"}</Link>
               </td>
               <td style={{ padding: "10px 4px", color: "#6b7280" }}>
                 {STATUS_LABEL[post.status] ?? post.status}

@@ -1,16 +1,23 @@
 import type { BusinessProfileRecord } from "@app/shared";
 import type { AiBlock } from "./schema.js";
 
+export interface DedupEntry {
+  title: string;
+  snippet: string;
+}
+
 export interface GenerateDraftInput {
   title: string;
   keyword: string;
   highlightContent: string;
   profile: BusinessProfileRecord;
+  /** Recent already-published/drafted posts to steer away from repeating. */
+  avoidOverlapWith?: DedupEntry[];
 }
 
 const WRITING_RULES = `[작성 규칙 — 반드시 지킬 것]
-1. 사실만 쓰세요. 위 [업체 정보]와 [이번 글에서 강조할 내용]에 없는 구체적 사실(수상 경력, 통계, 학생 수, 순위 등)은 절대로 지어내지 마세요.
-2. 분량은 공백 포함 2800~3200자가 최우선 규칙입니다. 다른 모든 지침보다 이 글자수 규칙이 우선합니다.
+1. 사실만 쓰세요. 위 [업체 정보]와 [이번 글에서 강조할 내용]에 없는 구체적 사실(수상 경력, 통계, 학생 수, 순위 등)은 절대로 지어내지 마세요. 다만 어떤 정보(트렌드, 일반 상식, 통계 등)를 다룰 때 더 신뢰도 있게 쓰고 싶다면 WebSearch 도구로 검증된 자료를 찾아 참고해도 됩니다 — 찾은 내용은 반드시 당신의 말로 자연스럽게 풀어 쓰고, 문장을 그대로 베끼거나 출처 URL을 본문에 적지 마세요.
+2. 분량은 공백 포함 2500~3200자가 최우선 규칙입니다. 다른 모든 지침보다 이 글자수 규칙이 우선합니다.
    - 모바일 가독성을 위해 문단 하나에는 짧은 문장 2개까지, 또는 긴 문장 1개만 담으세요. 그 대신 문단의 "개수"를 늘려서 분량을 채우세요 (문단을 길게 쓰지 말 것).
    - 글을 다 쓴 뒤 스스로 전체 글자수를 세어보고, 부족하면 반드시 문단을 더 추가해서 채우세요.
 3. 구조: 서론 5~6문단, 소제목(heading) 3~4개, 소제목 하나당 문단 8~10개, 결론 4~5문단.
@@ -43,6 +50,12 @@ function styleSampleSection(profile: BusinessProfileRecord): string {
   return `\n\n[말투 참고 샘플 — 문체만 참고하고, 내용을 그대로 베끼지 마세요]\n${profile.styleSample}`;
 }
 
+function avoidOverlapSection(entries: DedupEntry[] | undefined): string {
+  if (!entries || entries.length === 0) return "";
+  const list = entries.map((e, i) => `${i + 1}. "${e.title}" — ${e.snippet}`).join("\n");
+  return `\n\n[최근 이미 쓴 글들 — 같은 이야기/각도를 반복하지 마세요. 새로운 소재나 관점으로 쓰세요]\n${list}`;
+}
+
 function postSection(input: GenerateDraftInput): string {
   const { title, keyword, highlightContent } = input;
   const keywordLine = keyword.trim()
@@ -61,7 +74,7 @@ export function buildInitialPrompt(input: GenerateDraftInput): string {
   return [
     "당신은 학원/업체 블로그 홍보글의 '본문(서론-본론-결론)'만 작성하는 작가입니다.",
     profileSection(input.profile) + styleSampleSection(input.profile),
-    postSection(input),
+    postSection(input) + avoidOverlapSection(input.avoidOverlapWith),
     WRITING_RULES,
   ].join("\n\n");
 }

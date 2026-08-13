@@ -286,19 +286,30 @@ async function fillBlock(
       await insertSticker(mainFrame, log);
       break;
 
-    case "link_block":
+    case "link_block": {
       // Safety net: force-disable highlight immediately before any fixed
       // template block, in case a prior toggle silently failed.
       await setHighlight(mainFrame, false, log);
+
       if (block.kind === "reservation") {
-        // The real Naver Place map widget, required for Place linkage —
-        // not just a text link. The text link is still typed afterward
-        // regardless of whether the widget insert succeeded.
-        await insertPlaceWidget(mainFrame, page, profile.name, profile.address, log);
+        const widgetInserted = await insertPlaceWidget(mainFrame, page, profile.name, profile.address, log);
+        // The widget already shows the address + a map. Pasting the raw
+        // URL as plain text afterward makes Naver auto-expand it into a
+        // second big preview card repeating that same address right below
+        // it — a real redundant/ugly duplicate observed on a live published
+        // post. Only fall back to the plain-text link when the widget
+        // itself failed, so there's still SOME way to reserve.
+        if (!widgetInserted) {
+          await typeHuman(page, `${block.label} ${block.url}`);
+          await page.keyboard.press("Enter");
+        }
+        break;
       }
+
       await typeHuman(page, `${block.label} ${block.url}`);
       await page.keyboard.press("Enter");
       break;
+    }
 
     case "hashtags":
       await setHighlight(mainFrame, false, log);

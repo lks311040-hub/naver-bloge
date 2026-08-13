@@ -3,9 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 
-// Isolated from the project entirely — the model has no filesystem tools
-// anyway (tools: []), but pointing cwd somewhere unrelated is a second,
-// independent layer of isolation in case that ever changes.
+// Isolated from the project entirely — pointing cwd somewhere unrelated is
+// an independent layer of isolation on top of the tool allowlist below.
 const SCRATCH_DIR = path.join(os.tmpdir(), "naver-blog-automation-ai-scratch");
 
 export interface ClaudeQueryResult {
@@ -13,6 +12,18 @@ export interface ClaudeQueryResult {
   resultText: string;
   structuredOutput: unknown;
   errorMessage?: string;
+}
+
+export interface ClaudeQueryOptions {
+  /**
+   * Built-in tool names to allow, e.g. ["WebSearch"] for research-grounded
+   * generation (정보성 글, and promotional posts that need to back a factual
+   * claim). Omit/empty for text-generation-only calls — file/bash/etc tools
+   * are never included regardless of what's passed here; this module only
+   * ever forwards an explicit allowlist, never a preset.
+   */
+  tools?: string[];
+  maxTurns?: number;
 }
 
 /**
@@ -25,6 +36,7 @@ export interface ClaudeQueryResult {
 export async function runClaudeQuery(
   prompt: string,
   jsonSchema: Record<string, unknown>,
+  options: ClaudeQueryOptions = {},
 ): Promise<ClaudeQueryResult> {
   if (process.env.ANTHROPIC_API_KEY) {
     throw new Error(
@@ -38,9 +50,9 @@ export async function runClaudeQuery(
   const stream = query({
     prompt,
     options: {
-      tools: [], // text-generation only — no file/bash/etc access
+      tools: options.tools ?? [], // no file/bash access ever; WebSearch only when explicitly requested
       cwd: SCRATCH_DIR,
-      maxTurns: 4,
+      maxTurns: options.maxTurns ?? 4,
       outputFormat: { type: "json_schema", schema: jsonSchema },
     },
   });

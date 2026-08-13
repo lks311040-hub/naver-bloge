@@ -8,52 +8,36 @@ const STORAGE_STATE = path.join(ROOT, "data", "naver-storage-state.json");
 const OUT_DIR = path.join(ROOT, "..", "tmp-inspect");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
-const blogId = process.argv[2] || "accel_piano2087";
-
 const browser = await chromium.launch({ channel: "msedge", headless: false });
-const context = await browser.newContext({ storageState: STORAGE_STATE });
+const context = await browser.newContext({ storageState: STORAGE_STATE, viewport: { width: 900, height: 1000 } });
 const page = await context.newPage();
 
-async function insertStickerLikeApp(mainFrame) {
-  const tiles = mainFrame.locator(".se-sidebar-element-sticker");
-  if ((await tiles.count().catch(() => 0)) === 0) {
-    await mainFrame.locator('[data-name="sticker"][data-group="documentToolbar"]').click();
-    await page.waitForTimeout(1000);
-  }
-  const count = await tiles.count();
-  console.log("tile count at insert time:", count);
-  if (count === 0) return false;
-  await tiles.nth(Math.floor(Math.random() * count)).click();
-  await page.waitForTimeout(1200);
-  return true;
-}
-
 try {
-  await page.goto(`https://blog.naver.com/${blogId}?Redirect=Write`, { waitUntil: "networkidle", timeout: 25000 });
+  // Go to the blog's post list and click the AI-generated post to open it for real.
+  await page.goto("https://blog.naver.com/accel_piano2087", { waitUntil: "networkidle", timeout: 25000 });
   await page.waitForTimeout(1500);
   const mainFrame = page.frame({ name: "mainFrame" });
 
-  const popup = mainFrame.locator(".se-popup-alert-confirm");
-  if (await popup.count().catch(() => 0)) {
-    await popup.getByText("취소", { exact: true }).first().click({ timeout: 5000 });
-    await page.waitForTimeout(1000);
-  }
-  await mainFrame.locator(".se-help-panel-close-button").click({ timeout: 3000 }).catch(() => {});
-  await page.waitForTimeout(300);
+  const postLink = mainFrame.locator("text=승지초피아노").first();
+  await postLink.click({ timeout: 15000 });
+  await page.waitForTimeout(2000);
 
-  await mainFrame.locator(".se-title-text .se-text-paragraph").first().click();
-  await page.keyboard.type("t");
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(300);
-  await page.keyboard.type("첫 문단 ");
+  console.log("url after click:", page.url());
+  await page.screenshot({ path: path.join(OUT_DIR, "post-top.png"), fullPage: false });
 
-  const ok1 = await insertStickerLikeApp(mainFrame);
-  console.log("first insert ok:", ok1);
-  await page.keyboard.type(" 사이 텍스트 ");
-  const ok2 = await insertStickerLikeApp(mainFrame);
-  console.log("second insert ok:", ok2);
+  // scroll to top area with author info (usually right below title or in a floating badge)
+  const html = await page.frame({ name: "mainFrame" })?.evaluate(() => document.body.innerText.slice(0, 2500));
+  fs.writeFileSync(path.join(OUT_DIR, "post-top.txt"), html ?? "NO MAINFRAME");
+  console.log(html?.slice(0, 1500));
 
-  await page.screenshot({ path: path.join(OUT_DIR, "sticker-twice.png"), fullPage: false });
+  // scroll to bottom for author widget / place widget
+  await page.mouse.wheel(0, 3000);
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: path.join(OUT_DIR, "post-mid.png"), fullPage: false });
+
+  await page.mouse.wheel(0, 6000);
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: path.join(OUT_DIR, "post-bottom.png"), fullPage: false });
 } catch (err) {
   console.error("error:", err.message, err.stack);
 } finally {
