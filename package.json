@@ -1,0 +1,27 @@
+{
+  "name": "naver-blog-automation",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "predev": "npm run build -w shared",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build -w shared && npm run build -w server && npm run build -w web",
+    "migrate": "npm run migrate -w server",
+    "verify": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w web && npm run depcheck",
+    "depcheck": "depcruise --config .dependency-cruiser.cjs server/src"
+  },
+  "devDependencies": {
+    "dependency-cruiser": "^16.9.0",
+    "typescript": "^5.7.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "better-sqlite3": false
+  }
+}

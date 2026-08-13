@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# server data — DB, sessions, uploads must never be committed
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
+server/data/*.sqlite
+server/data/*.sqlite-shm
+server/data/*.sqlite-wal
+server/data/naver-storage-state.json
+server/data/uploads/
+
+.env
+.env.local
+
+# editor/OS
+.DS_Store
+Thumbs.db
+.vscode/
