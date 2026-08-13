@@ -38,20 +38,13 @@ async function runNaverLogin(runId: string): Promise<NaverLoginResult> {
   const page = await context.newPage();
 
   try {
-    let loggedIn = hasSavedState && (await context.cookies("https://www.naver.com")).some((c) => c.name === "NID_SES");
+    const hasSavedCookie =
+      hasSavedState && (await context.cookies("https://www.naver.com")).some((c) => c.name === "NID_SES");
 
-    if (loggedIn) {
+    if (hasSavedCookie) {
       log("저장된 세션을 확인하는 중...");
     } else {
-      log("네이버 로그인 페이지를 열었습니다. 새로 열린 창에서 직접 로그인해주세요.");
-      await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded" });
-
-      log("로그인을 기다리는 중입니다 (최대 5분)...");
-      loggedIn = await waitForLoginCookie(context, LOGIN_TIMEOUT_MS);
-      if (!loggedIn) {
-        log("시간 초과 — 로그인이 감지되지 않았습니다. 창을 닫고 다시 시도해주세요.", "warn");
-        return { ok: false, error: "timeout" };
-      }
+      await runFreshLogin(page, context, log);
     }
 
     // Persist the session immediately once login is confirmed — even if
@@ -59,16 +52,28 @@ async function runNaverLogin(runId: string): Promise<NaverLoginResult> {
     // retry can reuse it instead of asking the user to log in again.
     await context.storageState({ path: NAVER_STORAGE_STATE_PATH });
 
-    log("로그인이 감지되었습니다. 블로그 아이디를 확인하는 중...");
-    await page.goto("https://blog.naver.com/", { waitUntil: "networkidle" }).catch(() => {
-      // networkidle can time out on pages with long-polling/analytics
-      // connections — the URL/content checks below still work either way.
-    });
-    const blogId = await waitForBlogIdRedirect(page, BLOG_ID_TIMEOUT_MS);
+    log("블로그 아이디를 확인하는 중...");
+    let blogId = await tryDetectBlogId(page);
+
+    // A locally-cached NID_SES cookie doesn't guarantee Naver's server
+    // still honors it — sessions expire server-side after some idle time,
+    // and a stale-but-present cookie can silently land on a generic
+    // logged-out-looking page (BlogHome.naver, or even nid.naver.com's
+    // login form) instead of erroring outright. Rather than fail here and
+    // make the user manually retry, fall back to a full fresh login
+    // automatically — but only once, so a genuinely broken flow doesn't
+    // loop forever.
+    if (!blogId && hasSavedCookie) {
+      log("저장된 세션이 만료된 것 같습니다. 다시 로그인해주세요.", "warn");
+      await runFreshLogin(page, context, log);
+      await context.storageState({ path: NAVER_STORAGE_STATE_PATH });
+      log("블로그 아이디를 다시 확인하는 중...");
+      blogId = await tryDetectBlogId(page);
+    }
+
     if (!blogId) {
       log(
-        `블로그 아이디를 확인하지 못했습니다 (현재 페이지: ${page.url()}, 제목: "${await page.title().catch(() => "?")}"). ` +
-          `로그인 세션은 저장되었으니 다시 시도할 때 재로그인은 필요 없습니다.`,
+        `블로그 아이디를 확인하지 못했습니다 (현재 페이지: ${page.url()}, 제목: "${await page.title().catch(() => "?")}").`,
         "error",
       );
       return { ok: false, error: "blog_id_not_found" };
@@ -83,6 +88,31 @@ async function runNaverLogin(runId: string): Promise<NaverLoginResult> {
   } finally {
     await browser.close();
   }
+}
+
+type LogFn = (message: string, level?: ProgressLevel) => void;
+
+/** Navigates to the real Naver login form and waits for a human to log in. */
+async function runFreshLogin(page: Page, context: BrowserContext, log: LogFn): Promise<void> {
+  log("네이버 로그인 페이지를 열었습니다. 새로 열린 창에서 직접 로그인해주세요.");
+  await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded" });
+
+  log("로그인을 기다리는 중입니다 (최대 5분)...");
+  const loggedIn = await waitForLoginCookie(context, LOGIN_TIMEOUT_MS);
+  if (!loggedIn) {
+    throw new Error("timeout — 로그인이 감지되지 않았습니다");
+  }
+}
+
+/** Navigates to blog.naver.com and waits for the blogId to show up in the
+ * URL/HTML. Returns undefined (never throws) if it doesn't within the
+ * timeout — the caller decides what that means. */
+async function tryDetectBlogId(page: Page): Promise<string | undefined> {
+  await page.goto("https://blog.naver.com/", { waitUntil: "networkidle" }).catch(() => {
+    // networkidle can time out on pages with long-polling/analytics
+    // connections — the URL/content checks below still work either way.
+  });
+  return waitForBlogIdRedirect(page, BLOG_ID_TIMEOUT_MS);
 }
 
 async function waitForLoginCookie(context: BrowserContext, timeoutMs: number): Promise<boolean> {

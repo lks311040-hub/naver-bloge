@@ -59,7 +59,19 @@ async function runEditorAutofill(postId: string, runId: string): Promise<Autofil
     await page.waitForTimeout(1500);
 
     const mainFrame = page.frame({ name: "mainFrame" });
-    if (!mainFrame) throw new Error("에디터 프레임(mainFrame)을 찾지 못했습니다.");
+    if (!mainFrame) {
+      // Most common real-world cause: the saved session expired (Naver
+      // sessions don't last forever — this reliably happens after a few
+      // idle days) and the write-page navigation above landed on the
+      // actual login form instead. Give a clear, actionable message
+      // instead of the generic "frame not found".
+      if (page.url().includes("nid.naver.com")) {
+        throw new Error(
+          "네이버 로그인 세션이 만료된 것 같습니다. 홈 화면에서 '네이버 로그인'을 다시 눌러 로그인해주세요.",
+        );
+      }
+      throw new Error(`에디터 프레임(mainFrame)을 찾지 못했습니다. (현재 페이지: ${page.url()})`);
+    }
 
     await dismissResumeDraftPopup(mainFrame, log);
     await closeFloatingPanels(mainFrame);

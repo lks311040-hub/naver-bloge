@@ -8,36 +8,28 @@ const STORAGE_STATE = path.join(ROOT, "data", "naver-storage-state.json");
 const OUT_DIR = path.join(ROOT, "..", "tmp-inspect");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
+const blogId = process.argv[2] || "accel_piano2087";
+
 const browser = await chromium.launch({ channel: "msedge", headless: false });
-const context = await browser.newContext({ storageState: STORAGE_STATE, viewport: { width: 900, height: 1000 } });
+const context = await browser.newContext({ storageState: STORAGE_STATE });
 const page = await context.newPage();
 
 try {
-  // Go to the blog's post list and click the AI-generated post to open it for real.
-  await page.goto("https://blog.naver.com/accel_piano2087", { waitUntil: "networkidle", timeout: 25000 });
-  await page.waitForTimeout(1500);
-  const mainFrame = page.frame({ name: "mainFrame" });
-
-  const postLink = mainFrame.locator("text=승지초피아노").first();
-  await postLink.click({ timeout: 15000 });
+  await page.goto(`https://blog.naver.com/${blogId}?Redirect=Write`, { waitUntil: "networkidle", timeout: 30000 });
   await page.waitForTimeout(2000);
 
-  console.log("url after click:", page.url());
-  await page.screenshot({ path: path.join(OUT_DIR, "post-top.png"), fullPage: false });
+  console.log("top url:", page.url());
+  console.log("top title:", await page.title());
+  console.log(
+    "frames:",
+    page.frames().map((f) => ({ name: f.name(), url: f.url() })),
+  );
 
-  // scroll to top area with author info (usually right below title or in a floating badge)
-  const html = await page.frame({ name: "mainFrame" })?.evaluate(() => document.body.innerText.slice(0, 2500));
-  fs.writeFileSync(path.join(OUT_DIR, "post-top.txt"), html ?? "NO MAINFRAME");
-  console.log(html?.slice(0, 1500));
+  await page.screenshot({ path: path.join(OUT_DIR, "diag-write-page.png"), fullPage: false });
 
-  // scroll to bottom for author widget / place widget
-  await page.mouse.wheel(0, 3000);
-  await page.waitForTimeout(1000);
-  await page.screenshot({ path: path.join(OUT_DIR, "post-mid.png"), fullPage: false });
-
-  await page.mouse.wheel(0, 6000);
-  await page.waitForTimeout(1000);
-  await page.screenshot({ path: path.join(OUT_DIR, "post-bottom.png"), fullPage: false });
+  const bodySample = await page.evaluate(() => document.body.innerText.slice(0, 1500));
+  fs.writeFileSync(path.join(OUT_DIR, "diag-top-text.txt"), bodySample);
+  console.log("top body text sample:\n", bodySample);
 } catch (err) {
   console.error("error:", err.message, err.stack);
 } finally {
