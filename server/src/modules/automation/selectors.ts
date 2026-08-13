@@ -44,6 +44,30 @@ export const SELECTORS = {
   stickerToolbarButton: '[data-name="sticker"][data-group="documentToolbar"]',
   mapToolbarButton: '[data-name="map"][data-group="documentToolbar"]',
 
+  // "글감" (materials) search — a docked bottom panel, opened via the
+  // toolbar's magnifier-labelled "search" button. Its "이미지" category is
+  // Naver's built-in free/paid stock photo search (source: OGQ marketplace).
+  // Verified live on 2026-08-14 via scripts/inspect-editor.mjs.
+  materialsSearchToolbarButton: '[data-name="search"][data-group="documentToolbar"]',
+  materialsCategoryDropdown: "text=전체 글감",
+  materialsImageCategoryOption: "li:has-text('이미지'), [class*='item']:has-text('이미지')",
+  materialsSearchInput: 'input[placeholder="글감을 검색해 보세요."]',
+  materialsLicenseFilterToggle: "text=라이선스",
+  // Naver renders both checkboxes as always present; querying by the
+  // <label> text next to each <input type=checkbox> is the only reliable
+  // way to tell "무료" from "유료" (no distinguishing class/id observed).
+  materialsLicenseCheckbox: 'input[type="checkbox"]',
+  // The clickable insert target is the thumbnail wrapper, NOT the <img>
+  // itself and NOT the "사진 원본 보기" button (that opens a new tab).
+  materialsPhotoThumbnail: ".se-flayer-photo-thumbnail",
+  // Clicking a 유료(paid) thumbnail does NOT insert it — instead Naver opens
+  // this full-viewport "구매 상세" modal (price tag + 구매하기 button) and it
+  // never closes itself, blocking every click after it. The 무료 license
+  // filter should prevent this, but is not airtight, so insertFreeImage()
+  // detects and recovers from it defensively (close + try the next result).
+  materialsImageDetailPopup: '[data-group="popupLayer"][data-name="se-popup-image-detail"]',
+  materialsImageDetailCloseButton: ".se-popup-close-button",
+
   // Sticker sidebar panel — no search UI exists (verified live); it's a
   // category grid only, so autofill just picks a tile from the open
   // (default/recent) category rather than matching imageQuery.
