@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PostRecord } from "@app/shared";
-import { approvePost, autofillPost, fetchPost, markPostPublished } from "../api/posts";
+import { approvePost, autofillPost, fetchPost, markPostPublished, regeneratePost } from "../api/posts";
 import BlockRenderer from "../components/blocks/BlockRenderer";
 import { useEventSource } from "../hooks/useEventSource";
+
+const IN_PROGRESS_STATUSES = new Set(["queued", "generating", "filling"]);
 
 const STATUS_LABEL: Record<string, string> = {
   queued: "대기",
@@ -28,6 +30,10 @@ export default function DraftReview() {
     queryKey: ["post", postId],
     queryFn: () => fetchPost(postId!),
     enabled: !!postId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && IN_PROGRESS_STATUSES.has(status) ? 4000 : false;
+    },
   });
 
   function setPostCache(post: PostRecord) {
@@ -50,6 +56,11 @@ export default function DraftReview() {
     onSuccess: setPostCache,
   });
 
+  const regenerateMutation = useMutation({
+    mutationFn: () => regeneratePost(postId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["post", postId] }),
+  });
+
   const lastLog = logs[logs.length - 1];
   useEffect(() => {
     if (lastLog?.level === "done" || lastLog?.level === "error") {
@@ -65,6 +76,8 @@ export default function DraftReview() {
   }
   const post = postQuery.data!;
   const autofillInProgress = post.status === "filling";
+  const failedAtGeneration = post.status === "failed" && post.blocks.length === 0;
+  const failedAtAutofill = post.status === "failed" && post.blocks.length > 0;
 
   return (
     <div>
@@ -81,6 +94,22 @@ export default function DraftReview() {
         <p className="status-pill error" style={{ display: "block", whiteSpace: "pre-wrap", marginBottom: 16 }}>
           ⚠ {post.qaWarning}
         </p>
+      )}
+
+      {failedAtGeneration && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ color: "#6b7280", fontSize: 14 }}>
+            AI 초안 생성이 실패했습니다. 입력했던 제목/키워드/강조 내용 그대로 다시 시도할 수 있습니다.
+          </p>
+          <button type="button" onClick={() => regenerateMutation.mutate()} disabled={regenerateMutation.isPending}>
+            {regenerateMutation.isPending ? "다시 생성 요청 중..." : "다시 생성하기"}
+          </button>
+          {regenerateMutation.isError && (
+            <span className="status-pill error" style={{ marginLeft: 12 }}>
+              {String(regenerateMutation.error)}
+            </span>
+          )}
+        </div>
       )}
 
       <h1 style={{ fontSize: 22 }}>{post.title}</h1>
@@ -104,18 +133,19 @@ export default function DraftReview() {
         </div>
       )}
 
-      {(post.status === "ready" || autofillInProgress) && (
+      {(post.status === "ready" || autofillInProgress || failedAtAutofill) && (
         <div style={{ marginTop: 24 }}>
           <p style={{ color: "#6b7280", fontSize: 14 }}>
             네이버 블로그 글쓰기 화면을 열어 제목·본문·서식·사진/영상을 자동으로 채워 넣습니다. 발행 버튼은
             누르지 않으니, 채워진 내용을 확인하고 <strong>직접 발행</strong>해주세요.
+            {failedAtAutofill && " 지난 시도가 중간에 실패했습니다 — 다시 시도하면 처음부터 새로 채워 넣습니다."}
           </p>
           <button
             type="button"
             onClick={() => autofillMutation.mutate()}
             disabled={autofillMutation.isPending || autofillInProgress}
           >
-            {autofillInProgress ? "자동입력 진행 중..." : "네이버 에디터에 자동입력"}
+            {autofillInProgress ? "자동입력 진행 중..." : failedAtAutofill ? "자동입력 다시 시도" : "네이버 에디터에 자동입력"}
           </button>
           {autofillMutation.isError && (
             <span className="status-pill error" style={{ marginLeft: 12 }}>

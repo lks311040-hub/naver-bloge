@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { PostRequestSchema, POST_STATUSES, type PostStatus } from "@app/shared";
 import { UPLOADS_DIR } from "../../config/paths.js";
-import { createAndGenerate } from "./service.js";
+import { createAndGenerate, regeneratePost } from "./service.js";
 import { setBlockMedia, updateLinkBlock } from "./blockOps.js";
 import { approvePost, getPost, listPosts, markPostPublished } from "./repo.js";
 import { enqueueEditorAutofill } from "../automation/editorAutofill.js";
@@ -23,6 +23,23 @@ postsRouter.post("/generate", (req, res) => {
     .then((post) => res.status(202).json(post))
     .catch((err) => {
       res.status(500).json({ error: "generate_failed", message: String(err) });
+    });
+});
+
+// Retries generation for a post whose generation itself failed (as opposed
+// to an autofill failure, which just calls /autofill again). Reuses the
+// post's already-stored request fields.
+postsRouter.post("/:id/regenerate", (req, res) => {
+  regeneratePost(req.params.id!)
+    .then((result) => {
+      if (!result.ok) {
+        res.status(result.error === "post_not_found" ? 404 : 500).json({ error: result.error });
+        return;
+      }
+      res.status(202).json({ ok: true });
+    })
+    .catch((err) => {
+      res.status(500).json({ error: "regenerate_failed", message: String(err) });
     });
 });
 

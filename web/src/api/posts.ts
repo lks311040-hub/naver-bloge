@@ -50,3 +50,7 @@ export function markPostPublished(postId: string, publishedUrl: string): Promise
     body: JSON.stringify({ publishedUrl }),
   });
 }
+
+export function regeneratePost(postId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/posts/${postId}/regenerate`, { method: "POST" });
+}

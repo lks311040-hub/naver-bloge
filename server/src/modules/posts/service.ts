@@ -2,7 +2,14 @@ import type { BusinessProfileRecord, PostRecord, PostRequest, PostSource } from 
 import { getBusinessProfile } from "../business-profile/repo.js";
 import { generateDraft } from "../ai/index.js";
 import { assemblePost } from "./assemble.js";
-import { completeGeneration, createPost, getLatestPublished, markPostFailed } from "./repo.js";
+import {
+  completeGeneration,
+  createPost,
+  getLatestPublished,
+  getPost,
+  markPostFailed,
+  markPostGenerating,
+} from "./repo.js";
 
 export interface CreateAndGenerateOptions {
   source: PostSource;
@@ -34,6 +41,40 @@ export async function createAndGenerate(
   void runGeneration(post.id, request, profile);
 
   return post;
+}
+
+export interface RegenerateResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Retries generation for an existing post — reuses its already-stored
+ * request fields (title/keyword/highlightContent/prewrittenContent/
+ * relatedPost*), so the "다시 생성하기" button needs no new input. Used for
+ * posts stuck in `failed` where generation itself never produced blocks
+ * (as opposed to an autofill failure, which retries via the existing
+ * /autofill endpoint instead — that one doesn't need regeneration at all).
+ */
+export async function regeneratePost(postId: string): Promise<RegenerateResult> {
+  const post = getPost(postId);
+  if (!post) return { ok: false, error: "post_not_found" };
+
+  const profile = getBusinessProfile();
+  markPostGenerating(postId);
+  void runGeneration(
+    postId,
+    {
+      title: post.title,
+      keyword: post.keyword,
+      highlightContent: post.highlightContent,
+      prewrittenContent: post.prewrittenContent,
+      relatedPostTitle: post.relatedPostTitle,
+      relatedPostUrl: post.relatedPostUrl,
+    },
+    profile,
+  );
+  return { ok: true };
 }
 
 async function runGeneration(

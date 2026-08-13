@@ -143,6 +143,14 @@ export function markPostFailed(id: string, reason: string): void {
     .run(reason, id);
 }
 
+export function markPostGenerating(id: string): void {
+  // Clears qa_warning for the same reason markPostFilling does — a retry
+  // must not leave a stale failure message around if it succeeds.
+  getDb()
+    .prepare(`UPDATE posts SET status = 'generating', qa_warning = NULL, updated_at = datetime('now') WHERE id = ?`)
+    .run(id);
+}
+
 export function markPostFilling(id: string): void {
   // Clears qa_warning: it's shared with markPostFailed's failure reason, so
   // a fresh attempt must not leave a stale error from a previous failed run

@@ -13,6 +13,9 @@ server/data/*.sqlite-wal
 server/data/naver-storage-state.json
 server/data/uploads/
 
+# inspect-editor.mjs dumps (screenshots/HTML of the live Naver DOM)
+tmp-inspect/
+
 .env
 .env.local
 
