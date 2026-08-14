@@ -26,19 +26,30 @@ export type TopicSource = (typeof TOPIC_SOURCES)[number];
  * Mon/Tue/Thu/Fri schedule can produce 2 홍보성 + 2 정보성 a week from one
  * single schedule instead of needing two separate ones.
  */
-export const ScheduleRequestSchema = z
-  .object({
-    name: z.string().min(1, "예약 이름을 입력하세요"),
-    cronExpression: z.string().min(1, "cron 표현식을 입력하세요"),
-    timezone: z.string().default("Asia/Seoul"),
-    postTypes: z.array(z.enum(POST_TYPES)).min(1, "글 종류를 하나 이상 선택하세요"),
-    topicSource: z.enum(TOPIC_SOURCES).default("fixed"),
-    title: z.string().default(""),
-    keyword: z.string().default(""),
-    highlightContent: z.string().default(""),
-    enabled: z.boolean().default(true),
-  })
-  .superRefine((data, ctx) => {
+// The plain object shape, kept separate from the superRefine-wrapped
+// version below — zod v4 throws ("`.partial()` cannot be used on object
+// schemas containing refinements") if you call `.partial()` on a
+// superRefine-wrapped schema. server/src/modules/scheduler/routes.ts's PATCH
+// handler needs a partial schema (only a subset of fields, e.g. just
+// `enabled`, gets sent), so it builds that off this base object instead of
+// off ScheduleRequestSchema — meaning a PATCH's per-field shape isn't
+// re-checked against the cross-field rules below (postTypes count vs
+// topicSource, etc). That's fine: the route always merges the partial patch
+// onto the existing full record and passes the merged object to
+// updateSchedule() unconditionally, so nothing partial ever reaches the DB.
+export const ScheduleRequestObjectSchema = z.object({
+  name: z.string().min(1, "예약 이름을 입력하세요"),
+  cronExpression: z.string().min(1, "cron 표현식을 입력하세요"),
+  timezone: z.string().default("Asia/Seoul"),
+  postTypes: z.array(z.enum(POST_TYPES)).min(1, "글 종류를 하나 이상 선택하세요"),
+  topicSource: z.enum(TOPIC_SOURCES).default("fixed"),
+  title: z.string().default(""),
+  keyword: z.string().default(""),
+  highlightContent: z.string().default(""),
+  enabled: z.boolean().default(true),
+});
+
+export const ScheduleRequestSchema = ScheduleRequestObjectSchema.superRefine((data, ctx) => {
     if (data.postTypes.length > 1 && data.topicSource === "fixed") {
       ctx.addIssue({
         code: "custom",
