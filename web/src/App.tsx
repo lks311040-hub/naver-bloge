@@ -8,7 +8,7 @@ import PublishHistory from "./pages/PublishHistory";
 
 const NAV_ITEMS = [
   { to: "/", label: "홍보글 작성", end: true },
-  { to: "/keywords", label: "키워드 수집" },
+  { to: "/keywords", label: "글감 메모장" },
   { to: "/drafts", label: "초안" },
   { to: "/schedule", label: "예약" },
   { to: "/history", label: "발행 이력" },
