@@ -41,28 +41,39 @@ export async function generateScheduledDraft(schedule: ScheduleRecord): Promise<
   let consumedIdeaId: string | undefined;
 
   if (schedule.topicSource === "queue") {
-    // Queue-sourced schedules always produce 정보성 posts (keyword-driven,
-    // AI writes its own title) — see shared/src/schedule.ts for why a fixed
-    // 홍보성 title can't be auto-picked the same way.
-    const idea = consumeNextKeywordIdea();
-    let keyword: string;
+    // Queue-sourced schedules use the postType chosen on the schedule
+    // itself (either is fine now — 홍보성 글감은 그대로 제목으로, 정보성
+    // 글감은 AI가 제목을 새로 짓는 주제 키워드로 쓰인다).
+    const idea = consumeNextKeywordIdea(schedule.postType);
+    let topic: string;
     if (idea) {
-      keyword = idea.text;
+      topic = idea.text;
       consumedIdeaId = idea.id;
     } else {
       const profile = getBusinessProfile();
-      const recent = getRecentPostsForDedup("informational", { limit: AVOID_LOOKBACK }).map((p) => p.title);
-      keyword = await proposeTopic({ profile, avoidTopics: recent });
+      const recent = getRecentPostsForDedup(schedule.postType, { limit: AVOID_LOOKBACK }).map((p) => p.title);
+      topic = await proposeTopic({ postType: schedule.postType, profile, avoidTopics: recent });
     }
-    request = {
-      postType: "informational",
-      title: "",
-      keyword,
-      highlightContent: "",
-      prewrittenContent: "",
-      relatedPostTitle: "",
-      relatedPostUrl: "",
-    };
+    request =
+      schedule.postType === "promotional"
+        ? {
+            postType: "promotional",
+            title: topic,
+            keyword: "",
+            highlightContent: "",
+            prewrittenContent: "",
+            relatedPostTitle: "",
+            relatedPostUrl: "",
+          }
+        : {
+            postType: "informational",
+            title: "",
+            keyword: topic,
+            highlightContent: "",
+            prewrittenContent: "",
+            relatedPostTitle: "",
+            relatedPostUrl: "",
+          };
   } else {
     request = {
       postType: schedule.postType,

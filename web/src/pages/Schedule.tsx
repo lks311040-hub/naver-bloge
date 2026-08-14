@@ -147,7 +147,20 @@ export default function Schedule() {
             cron: {cronPreview} ({watch("timezone")})
           </p>
 
-          <Field label="예약 종류">
+          <Field label="글 종류">
+            <div style={{ display: "flex", gap: 16 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
+                <input type="radio" value="promotional" {...register("postType")} />
+                홍보성 글
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
+                <input type="radio" value="informational" {...register("postType")} />
+                정보성 글
+              </label>
+            </div>
+          </Field>
+
+          <Field label="주제를 어떻게 정할지">
             <div style={{ display: "flex", gap: 16 }}>
               <label
                 onClick={(e) => {
@@ -157,45 +170,39 @@ export default function Schedule() {
                 style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, cursor: "pointer", userSelect: "none" }}
               >
                 <input type="radio" checked={topicSource === "fixed"} readOnly />
-                고정 주제 (홍보성/정보성, 매번 같은 제목·키워드)
+                고정 주제 직접 입력
               </label>
               <label
                 onClick={(e) => {
                   e.preventDefault();
                   setValue("topicSource", "queue");
-                  setValue("postType", "informational");
                 }}
                 style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, cursor: "pointer", userSelect: "none" }}
               >
                 <input type="radio" checked={topicSource === "queue"} readOnly />
-                글감 큐 사용 (정보성, 매번 새 주제)
+                글감 큐에서 매번 새로
               </label>
             </div>
           </Field>
 
-          {isQueue && (
+          {isQueue ? (
             <p style={{ color: "#6b7280", fontSize: 13, margin: 0 }}>
-              실행될 때마다 "글감 메모장"에서 오래된 순으로 하나씩 주제를 꺼내 정보성 글을 씁니다. 메모장이
-              비어 있으면 AI가 최근 글과 겹치지 않는 새 주제를 스스로 골라 씁니다. 아래 제목/키워드 입력은
-              무시됩니다.
+              실행될 때마다 "글감 메모장"에 등록된 <strong>{isInformational ? "정보성" : "홍보성"}</strong> 글감 중
+              오래된 순으로 하나씩 꺼내 씁니다{isInformational ? " (AI가 이 글감을 주제로 삼아 제목을 새로 짓습니다)" : " (이 글감이 글 제목으로 그대로 쓰입니다)"}.
+              해당 글감이 다 떨어지면 AI가 최근 글과 겹치지 않는 {isInformational ? "새 주제를" : "새 제목을"} 스스로
+              골라 씁니다.
+            </p>
+          ) : (
+            <p style={{ color: "#6b7280", fontSize: 13, margin: 0 }}>
+              아래에 직접 입력한 내용으로, 이 예약이 실행될 때마다{" "}
+              <strong>{isInformational ? "매번 정확히 똑같은 주제로" : "매번 정확히 똑같은 제목으로"}</strong> 글을
+              씁니다. 보통은 위에서 "글감 큐에서 매번 새로"를 고르는 편이 낫고, 이건 매번 똑같은 문구가 필요한 정기
+              공지 같은 경우에만 쓰세요.
             </p>
           )}
 
           {!isQueue && (
             <>
-              <Field label="글 종류">
-                <div style={{ display: "flex", gap: 16 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
-                    <input type="radio" value="promotional" {...register("postType")} />
-                    홍보성 글
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
-                    <input type="radio" value="informational" {...register("postType")} />
-                    정보성 글
-                  </label>
-                </div>
-              </Field>
-
               {!isInformational && (
                 <Field label="글 제목">
                   <input {...register("title")} />
