@@ -42,24 +42,12 @@ export const SELECTORS = {
   imageToolbarButton: '[data-name="image"][data-group="documentToolbar"]',
   videoToolbarButton: '[data-name="video"][data-group="documentToolbar"]',
   stickerToolbarButton: '[data-name="sticker"][data-group="documentToolbar"]',
-  mapToolbarButton: '[data-name="map"][data-group="documentToolbar"]',
 
   // Sticker sidebar panel — no search UI exists (verified live); it's a
   // category grid only, so autofill just picks a tile from the open
   // (default/recent) category rather than matching imageQuery.
   stickerTile: ".se-sidebar-element-sticker",
 
-  // Naver "장소" (Place) widget popup — scoped selectors so the "확인"
-  // click below can never hit the same-class button that also exists
-  // outside this popup.
-  placePopup: '[class*="placesMap"]',
-  placeSearchInput: 'input[type="text"]',
-  placeResultItem: ".se-place-map-search-result-item",
-  placeResultAddress: ".se-place-map-search-result-address",
-  // The "추가" button only visually activates on hover in the real UI —
-  // call .hover() before .click() on this.
-  placeAddButton: ".se-place-add-button",
-  placeConfirmButton: ".se-popup-button-confirm",
   // The "default style" divider — one direct click, no style sub-menu.
   dividerToolbarButton:
     '[data-name="horizontal-line"][data-group="documentToolbar"].se-insert-horizontal-line-default-toolbar-button',

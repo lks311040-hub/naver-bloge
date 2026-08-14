@@ -1,16 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chromium, type Frame, type Page } from "playwright";
-import { parseInlineMarkup, type Block, type BusinessProfileRecord } from "@app/shared";
+import { parseInlineMarkup, type Block } from "@app/shared";
 import { progressBus, type ProgressLevel } from "../sse/index.js";
 import { automationQueue } from "./queue.js";
 import { UPLOADS_DIR } from "../../config/paths.js";
 import { getNaverSession } from "../naver-session/repo.js";
-import { getBusinessProfile } from "../business-profile/repo.js";
 import { getPost, markPostFailed, markPostFilledAwaitingPublish, markPostFilling } from "../posts/repo.js";
 import { typeHuman, sleep } from "./humanType.js";
 import { DEFAULT_FONT_SIZE, HIGHLIGHT_COLOR_HEX, SELECTORS } from "./selectors.js";
-import { insertPlaceWidget } from "./placeWidget.js";
 
 export interface AutofillResult {
   ok: boolean;
@@ -37,8 +35,6 @@ async function runEditorAutofill(postId: string, runId: string): Promise<Autofil
     log("네이버 로그인이 필요합니다. 먼저 홈 화면에서 로그인해주세요.", "error");
     return { ok: false, error: "not_logged_in" };
   }
-
-  const profile = getBusinessProfile();
 
   markPostFilling(postId);
   log("브라우저를 여는 중...");
@@ -87,7 +83,7 @@ async function runEditorAutofill(postId: string, runId: string): Promise<Autofil
 
     log(`본문을 작성하는 중... (총 ${post.blocks.length}개 블록)`);
     for (let i = 0; i < post.blocks.length; i++) {
-      await fillBlock(mainFrame, page, post.blocks[i]!, profile, log);
+      await fillBlock(mainFrame, page, post.blocks[i]!, log);
       if ((i + 1) % 10 === 0) log(`${i + 1}/${post.blocks.length}개 블록 완료`);
     }
 
@@ -254,13 +250,7 @@ async function insertSticker(mainFrame: Frame, log: LogFn): Promise<void> {
   await sleep(1200);
 }
 
-async function fillBlock(
-  mainFrame: Frame,
-  page: Page,
-  block: Block,
-  profile: BusinessProfileRecord,
-  log: LogFn,
-): Promise<void> {
+async function fillBlock(mainFrame: Frame, page: Page, block: Block, log: LogFn): Promise<void> {
   switch (block.type) {
     case "paragraph":
       await typeRichText(mainFrame, page, block.text, log);
@@ -306,21 +296,15 @@ async function fillBlock(
       // template block, in case a prior toggle silently failed.
       await setHighlight(mainFrame, false, log);
 
-      if (block.kind === "reservation") {
-        const widgetInserted = await insertPlaceWidget(mainFrame, page, profile.name, profile.address, log);
-        // The widget already shows the address + a map. Pasting the raw
-        // URL as plain text afterward makes Naver auto-expand it into a
-        // second big preview card repeating that same address right below
-        // it — a real redundant/ugly duplicate observed on a live published
-        // post. Only fall back to the plain-text link when the widget
-        // itself failed, so there's still SOME way to reserve.
-        if (!widgetInserted) {
-          await typeHuman(page, `${block.label} ${block.url}`);
-          await page.keyboard.press("Enter");
-        }
-        break;
-      }
-
+      // Reservation links used to insert a "장소"(Place) map widget instead
+      // of the actual reservationUrl — that only shows a generic address/map
+      // card, not anything tied to the real booking page. Typing the actual
+      // booking.naver.com URL as plain text (like every other link_block)
+      // makes Naver auto-expand it into a rich preview card straight from
+      // that booking page itself (photo, bio, "예약" affordance) — verified
+      // live via scripts/inspect-editor.mjs — which is both more useful and
+      // avoids the double-card problem the widget was originally added to
+      // dodge (there's no competing widget anymore, so nothing to duplicate).
       await typeHuman(page, `${block.label} ${block.url}`);
       await page.keyboard.press("Enter");
       break;
