@@ -2,8 +2,15 @@ import { useEffect, useState } from "react";
 import BusinessProfileForm from "../components/BusinessProfileForm";
 import NewPostForm from "../components/NewPostForm";
 import NaverLoginPanel from "../components/NaverLoginPanel";
+import KakaoNotifyPanel from "../components/KakaoNotifyPanel";
 
 type HealthState = { status: "loading" } | { status: "ok" } | { status: "error"; message: string };
+
+const KAKAO_REDIRECT_MESSAGE: Record<string, string> = {
+  connected: "카카오톡 연결이 완료됐습니다.",
+  denied: "카카오 로그인 동의가 취소됐습니다.",
+  error: "카카오 연결 중 오류가 발생했습니다. 다시 시도해주세요.",
+};
 
 export default function Home() {
   const [health, setHealth] = useState<HealthState>({ status: "loading" });
@@ -18,6 +25,8 @@ export default function Home() {
       .catch((err) => setHealth({ status: "error", message: String(err) }));
   }, []);
 
+  const kakaoParam = new URLSearchParams(window.location.search).get("kakao");
+
   return (
     <div>
       <h2>홍보글 작성</h2>
@@ -28,7 +37,16 @@ export default function Home() {
         {health.status === "error" && <span className="status-pill error">연결 실패 ({health.message})</span>}
       </p>
 
+      {kakaoParam && KAKAO_REDIRECT_MESSAGE[kakaoParam] && (
+        <p>
+          <span className={`status-pill ${kakaoParam === "connected" ? "ok" : "error"}`}>
+            {KAKAO_REDIRECT_MESSAGE[kakaoParam]}
+          </span>
+        </p>
+      )}
+
       <NaverLoginPanel />
+      <KakaoNotifyPanel />
 
       <section>
         <h3>업체 정보 등록</h3>

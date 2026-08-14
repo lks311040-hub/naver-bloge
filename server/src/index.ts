@@ -7,6 +7,8 @@ import { postsRouter } from "./modules/posts/index.js";
 import { naverSessionRouter } from "./modules/naver-session/index.js";
 import { sseRouter } from "./modules/sse/index.js";
 import { schedulerRouter, startScheduler } from "./modules/scheduler/index.js";
+import { keywordIdeasRouter } from "./modules/keyword-ideas/index.js";
+import { kakaoRouter } from "./modules/kakao/index.js";
 
 ensureDataDirs();
 runMigrations();
@@ -24,6 +26,8 @@ app.use("/api/posts", postsRouter);
 app.use("/api/naver", naverSessionRouter);
 app.use("/api/events", sseRouter);
 app.use("/api/schedules", schedulerRouter);
+app.use("/api/keyword-ideas", keywordIdeasRouter);
+app.use("/api/kakao", kakaoRouter);
 app.use("/media", express.static(UPLOADS_DIR));
 
 startScheduler();

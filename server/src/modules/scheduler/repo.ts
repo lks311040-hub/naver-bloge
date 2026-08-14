@@ -8,6 +8,8 @@ interface ScheduleRow {
   cron_expression: string;
   timezone: string;
   topic_params: string;
+  post_type: "promotional" | "informational";
+  topic_source: "fixed" | "queue";
   enabled: number;
   last_run_at: string | null;
   next_run_at: string | null;
@@ -28,6 +30,8 @@ function rowToRecord(row: ScheduleRow): ScheduleRecord {
     name: row.name,
     cronExpression: row.cron_expression,
     timezone: row.timezone,
+    postType: row.post_type,
+    topicSource: row.topic_source,
     title: topic.title,
     keyword: topic.keyword,
     highlightContent: topic.highlightContent,
@@ -39,7 +43,7 @@ function rowToRecord(row: ScheduleRow): ScheduleRecord {
   };
 }
 
-const SELECT_COLUMNS = `id, name, cron_expression, timezone, topic_params, enabled, last_run_at, next_run_at, created_at, updated_at`;
+const SELECT_COLUMNS = `id, name, cron_expression, timezone, topic_params, post_type, topic_source, enabled, last_run_at, next_run_at, created_at, updated_at`;
 
 export function listSchedules(): ScheduleRecord[] {
   const rows = getDb()
@@ -64,8 +68,8 @@ export function createSchedule(input: ScheduleRequest): ScheduleRecord {
   };
   getDb()
     .prepare(
-      `INSERT INTO schedules (id, name, cron_expression, timezone, topic_params, enabled, created_at, updated_at)
-       VALUES (@id, @name, @cronExpression, @timezone, @topicParams, @enabled, datetime('now'), datetime('now'))`,
+      `INSERT INTO schedules (id, name, cron_expression, timezone, topic_params, post_type, topic_source, enabled, created_at, updated_at)
+       VALUES (@id, @name, @cronExpression, @timezone, @topicParams, @postType, @topicSource, @enabled, datetime('now'), datetime('now'))`,
     )
     .run({
       id,
@@ -73,6 +77,8 @@ export function createSchedule(input: ScheduleRequest): ScheduleRecord {
       cronExpression: input.cronExpression,
       timezone: input.timezone,
       topicParams: JSON.stringify(topicParams),
+      postType: input.postType,
+      topicSource: input.topicSource,
       enabled: input.enabled ? 1 : 0,
     });
   return getSchedule(id)!;
@@ -91,6 +97,8 @@ export function updateSchedule(id: string, input: ScheduleRequest): ScheduleReco
          cron_expression = @cronExpression,
          timezone = @timezone,
          topic_params = @topicParams,
+         post_type = @postType,
+         topic_source = @topicSource,
          enabled = @enabled,
          updated_at = datetime('now')
        WHERE id = @id`,
@@ -101,6 +109,8 @@ export function updateSchedule(id: string, input: ScheduleRequest): ScheduleReco
       cronExpression: input.cronExpression,
       timezone: input.timezone,
       topicParams: JSON.stringify(topicParams),
+      postType: input.postType,
+      topicSource: input.topicSource,
       enabled: input.enabled ? 1 : 0,
     });
   return getSchedule(id);
