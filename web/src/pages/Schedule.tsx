@@ -47,6 +47,7 @@ export default function Schedule() {
     handleSubmit,
     reset,
     watch,
+    getValues,
     setValue,
     setError,
     clearErrors,
@@ -76,10 +77,12 @@ export default function Schedule() {
     mutationFn: createSchedule,
     onSuccess: () => {
       invalidate();
-      reset({ ...EMPTY, postTypes: ["promotional"] });
-      setDays([1]);
-      setTime("09:00");
-      setPostTypes(["promotional"]);
+      // Only clear the text/identity fields — keep 요일/시각/글 종류/주제
+      // 소스 exactly as they were. Registering several similar schedules
+      // in a row (e.g. one queue schedule per weekday group) was getting
+      // wiped back to "홍보성 + 고정 주제" after every single submit,
+      // forcing her to redo every selector each time.
+      reset({ ...getValues(), name: "", title: "", keyword: "", highlightContent: "", enabled: true });
     },
   });
 
