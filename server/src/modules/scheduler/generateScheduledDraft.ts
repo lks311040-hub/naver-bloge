@@ -5,6 +5,7 @@ import { getBusinessProfile } from "../business-profile/repo.js";
 import { consumeNextKeywordIdea, linkKeywordIdeaToPost } from "../keyword-ideas/index.js";
 import { proposeTopic } from "../ai/proposeTopic.js";
 import { notifyKakao } from "../kakao/index.js";
+import { pickNextPostType, touchScheduleFiredPostType } from "./repo.js";
 import { stripInlineMarkup } from "@app/shared";
 
 // Generation is fire-and-forget from createAndGenerate's point of view (the
@@ -37,25 +38,28 @@ async function waitForGenerationToSettle(postId: string): Promise<PostRecord | u
  * convention.
  */
 export async function generateScheduledDraft(schedule: ScheduleRecord): Promise<void> {
+  // A schedule can have both 홍보성+정보성 checked — decide which one fires
+  // THIS time (round-robin) before anything else, and persist it right
+  // away so the rotation stays correct even if generation itself fails.
+  const postType = pickNextPostType(schedule);
+  touchScheduleFiredPostType(schedule.id, postType);
+
   let request: PostRequest;
   let consumedIdeaId: string | undefined;
 
   if (schedule.topicSource === "queue") {
-    // Queue-sourced schedules use the postType chosen on the schedule
-    // itself (either is fine now — 홍보성 글감은 그대로 제목으로, 정보성
-    // 글감은 AI가 제목을 새로 짓는 주제 키워드로 쓰인다).
-    const idea = consumeNextKeywordIdea(schedule.postType);
+    const idea = consumeNextKeywordIdea(postType);
     let topic: string;
     if (idea) {
       topic = idea.text;
       consumedIdeaId = idea.id;
     } else {
       const profile = getBusinessProfile();
-      const recent = getRecentPostsForDedup(schedule.postType, { limit: AVOID_LOOKBACK }).map((p) => p.title);
-      topic = await proposeTopic({ postType: schedule.postType, profile, avoidTopics: recent });
+      const recent = getRecentPostsForDedup(postType, { limit: AVOID_LOOKBACK }).map((p) => p.title);
+      topic = await proposeTopic({ postType, profile, avoidTopics: recent });
     }
     request =
-      schedule.postType === "promotional"
+      postType === "promotional"
         ? {
             postType: "promotional",
             title: topic,
@@ -75,8 +79,11 @@ export async function generateScheduledDraft(schedule: ScheduleRecord): Promise<
             relatedPostUrl: "",
           };
   } else {
+    // Fixed-topic mode only ever has one postType selected (enforced by
+    // shared/src/schedule.ts's superRefine), so schedule.title/keyword
+    // unambiguously belong to it.
     request = {
-      postType: schedule.postType,
+      postType,
       title: schedule.title,
       keyword: schedule.keyword,
       highlightContent: schedule.highlightContent,

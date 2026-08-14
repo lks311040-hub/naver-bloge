@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ScheduleRequestSchema, type ScheduleRecord, type ScheduleRequest } from "@app/shared";
+import { ScheduleRequestSchema, type PostType, type ScheduleRecord, type ScheduleRequest } from "@app/shared";
 import { createSchedule, deleteSchedule, fetchSchedules, runScheduleNow, updateSchedule } from "../api/schedules";
 
 // cron 요일: 일=0 월=1 화=2 수=3 목=4 금=5 토=6
@@ -16,17 +16,18 @@ const WEEKDAYS = [
   { value: 0, label: "일" },
 ] as const;
 
+const POST_TYPE_LABEL: Record<PostType, string> = { promotional: "홍보성", informational: "정보성" };
+
 function buildCronExpression(days: number[], time: string): string {
   const [hh, mm] = time.split(":").map((n) => Number(n));
   const dayPart = days.length > 0 ? [...days].sort().join(",") : "*";
   return `${mm || 0} ${hh || 0} * * ${dayPart}`;
 }
 
-const EMPTY: ScheduleRequest = {
+const EMPTY: Omit<ScheduleRequest, "postTypes"> = {
   name: "",
   cronExpression: "0 9 * * 1",
   timezone: "Asia/Seoul",
-  postType: "promotional",
   topicSource: "fixed",
   title: "",
   keyword: "",
@@ -40,6 +41,7 @@ export default function Schedule() {
 
   const [days, setDays] = useState<number[]>([1]); // 기본: 매주 월요일
   const [time, setTime] = useState("09:00");
+  const [postTypes, setPostTypes] = useState<PostType[]>(["promotional"]);
 
   const {
     register,
@@ -50,12 +52,14 @@ export default function Schedule() {
     formState: { errors },
   } = useForm<ScheduleRequest>({
     resolver: zodResolver(ScheduleRequestSchema),
-    defaultValues: EMPTY,
+    defaultValues: { ...EMPTY, postTypes },
   });
-  const postType = watch("postType");
   const topicSource = watch("topicSource");
   const isQueue = topicSource === "queue";
-  const isInformational = postType === "informational";
+  // Fixed 모드는 항상 정확히 1개만 허용되므로 (스키마가 강제) 이 경우
+  // postTypes[0]만 보면 된다.
+  const singleType = postTypes[0] ?? "promotional";
+  const isInformational = singleType === "informational";
 
   const cronPreview = useMemo(() => buildCronExpression(days, time), [days, time]);
 
@@ -65,9 +69,10 @@ export default function Schedule() {
     mutationFn: createSchedule,
     onSuccess: () => {
       invalidate();
-      reset(EMPTY);
+      reset({ ...EMPTY, postTypes: ["promotional"] });
       setDays([1]);
       setTime("09:00");
+      setPostTypes(["promotional"]);
     },
   });
 
@@ -81,6 +86,17 @@ export default function Schedule() {
 
   const toggleDay = (d: number) => {
     setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+  };
+
+  const togglePostType = (pt: PostType) => {
+    setPostTypes((prev) => {
+      const next = prev.includes(pt) ? prev.filter((x) => x !== pt) : [...prev, pt];
+      if (next.length === 0) return prev; // 최소 1개는 유지
+      // 2개를 고르면 "고정 주제"는 의미가 없으니(제목/키워드를 하나로
+      // 정할 수 없음) 자동으로 "글감 큐"로 전환해준다.
+      if (next.length > 1 && topicSource === "fixed") setValue("topicSource", "queue");
+      return next;
+    });
   };
 
   return (
@@ -98,7 +114,7 @@ export default function Schedule() {
         <form
           onSubmit={handleSubmit((data) => {
             const cronExpression = buildCronExpression(days, time);
-            createMutation.mutate({ ...data, cronExpression });
+            createMutation.mutate({ ...data, postTypes, cronExpression });
           })}
           style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480 }}
         >
@@ -147,16 +163,21 @@ export default function Schedule() {
             cron: {cronPreview} ({watch("timezone")})
           </p>
 
-          <Field label="글 종류">
+          <Field label="글 종류 (2개 다 고르면 실행마다 번갈아가며 발행)">
             <div style={{ display: "flex", gap: 16 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
-                <input type="radio" value="promotional" {...register("postType")} />
-                홍보성 글
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
-                <input type="radio" value="informational" {...register("postType")} />
-                정보성 글
-              </label>
+              {(["promotional", "informational"] as const).map((pt) => (
+                <label
+                  key={pt}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    togglePostType(pt);
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, cursor: "pointer", userSelect: "none" }}
+                >
+                  <input type="checkbox" checked={postTypes.includes(pt)} readOnly />
+                  {POST_TYPE_LABEL[pt]} 글
+                </label>
+              ))}
             </div>
           </Field>
 
@@ -165,11 +186,20 @@ export default function Schedule() {
               <label
                 onClick={(e) => {
                   e.preventDefault();
+                  if (postTypes.length > 1) return; // 2개 선택 시 고정 주제 비활성
                   setValue("topicSource", "fixed");
                 }}
-                style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, cursor: "pointer", userSelect: "none" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontWeight: 400,
+                  cursor: postTypes.length > 1 ? "not-allowed" : "pointer",
+                  userSelect: "none",
+                  opacity: postTypes.length > 1 ? 0.5 : 1,
+                }}
               >
-                <input type="radio" checked={topicSource === "fixed"} readOnly />
+                <input type="radio" checked={topicSource === "fixed"} readOnly disabled={postTypes.length > 1} />
                 고정 주제 직접 입력
               </label>
               <label
@@ -183,14 +213,26 @@ export default function Schedule() {
                 글감 큐에서 매번 새로
               </label>
             </div>
+            {postTypes.length > 1 && topicSource === "fixed" && (
+              <span style={{ color: "#9ca3af", fontSize: 12 }}>글 종류를 2개 선택하면 글감 큐만 쓸 수 있어요.</span>
+            )}
           </Field>
 
           {isQueue ? (
             <p style={{ color: "#6b7280", fontSize: 13, margin: 0 }}>
-              실행될 때마다 "글감 메모장"에 등록된 <strong>{isInformational ? "정보성" : "홍보성"}</strong> 글감 중
-              오래된 순으로 하나씩 꺼내 씁니다{isInformational ? " (AI가 이 글감을 주제로 삼아 제목을 새로 짓습니다)" : " (이 글감이 글 제목으로 그대로 쓰입니다)"}.
-              해당 글감이 다 떨어지면 AI가 최근 글과 겹치지 않는 {isInformational ? "새 주제를" : "새 제목을"} 스스로
-              골라 씁니다.
+              실행될 때마다{" "}
+              {postTypes.length > 1 ? (
+                <>
+                  <strong>홍보성 ↔ 정보성을 번갈아가며(라운드로빈)</strong> 각각의 "글감 메모장" 큐에서 하나씩
+                  꺼내 씁니다.
+                </>
+              ) : (
+                <>
+                  "글감 메모장"에 등록된 <strong>{POST_TYPE_LABEL[singleType]}</strong> 글감 중 오래된 순으로
+                  하나씩 꺼내 씁니다{isInformational ? " (AI가 이 글감을 주제로 삼아 제목을 새로 짓습니다)" : " (이 글감이 글 제목으로 그대로 쓰입니다)"}.
+                </>
+              )}{" "}
+              해당 글감이 다 떨어지면 AI가 최근 글과 겹치지 않는 새 주제/제목을 스스로 골라 씁니다.
             </p>
           ) : (
             <p style={{ color: "#6b7280", fontSize: 13, margin: 0 }}>
@@ -261,8 +303,6 @@ export default function Schedule() {
   );
 }
 
-const POST_TYPE_LABEL: Record<string, string> = { promotional: "홍보성", informational: "정보성" };
-
 function ScheduleRow({
   schedule,
   onToggle,
@@ -281,7 +321,7 @@ function ScheduleRow({
       <td style={{ padding: "10px 4px" }}>
         <strong>{schedule.name}</strong>
         <div style={{ color: "#6b7280", fontSize: 12 }}>
-          {POST_TYPE_LABEL[schedule.postType]} ·{" "}
+          {schedule.postTypes.map((pt) => POST_TYPE_LABEL[pt]).join(" ↔ ")} ·{" "}
           {schedule.topicSource === "queue" ? "글감 큐 사용" : schedule.title || schedule.keyword}
         </div>
       </td>
