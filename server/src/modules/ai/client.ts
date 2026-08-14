@@ -63,6 +63,17 @@ export async function runClaudeQuery(
   let errorMessage: string | undefined;
 
   for await (const message of stream) {
+    if (message.type === "assistant") {
+      const content = message.message?.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block && typeof block === "object" && "type" in block && block.type === "tool_use") {
+            const input = "input" in block ? JSON.stringify(block.input).slice(0, 200) : "";
+            console.log(`[ai] tool_use: ${"name" in block ? block.name : "?"} ${input}`);
+          }
+        }
+      }
+    }
     if (message.type === "result") {
       if (message.subtype === "success") {
         ok = !message.is_error;
