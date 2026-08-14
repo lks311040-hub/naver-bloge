@@ -1,6 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type FieldPath } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BusinessProfileSchema, type BusinessProfile } from "@app/shared";
 import { fetchBusinessProfile, saveBusinessProfile } from "../api/businessProfile";
@@ -27,9 +26,11 @@ export default function BusinessProfileForm() {
     register,
     handleSubmit,
     reset,
-    formState: { isDirty, isSubmitSuccessful },
-  } = useForm<BusinessProfile>({
-    resolver: zodResolver(BusinessProfileSchema),
+    setError,
+    clearErrors,
+    formState: { isDirty, isSubmitSuccessful, errors },
+  } = useForm({
+    // No zodResolver — see Schedule.tsx for why. Validated by hand below.
     defaultValues: EMPTY,
   });
 
@@ -61,7 +62,20 @@ export default function BusinessProfileForm() {
 
   return (
     <form
-      onSubmit={handleSubmit((data) => mutation.mutate(data))}
+      onSubmit={handleSubmit((data) => {
+        clearErrors();
+        const parsed = BusinessProfileSchema.safeParse(data);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            const field = issue.path[0];
+            if (typeof field === "string") {
+              setError(field as FieldPath<typeof data>, { type: "custom", message: issue.message });
+            }
+          }
+          return;
+        }
+        mutation.mutate(parsed.data);
+      })}
       style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 640 }}
     >
       <Field label="업체/학원 이름">

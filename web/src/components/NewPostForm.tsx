@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type FieldPath } from "react-hook-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { PostRequestSchema, type PostRequest } from "@app/shared";
@@ -26,9 +25,13 @@ export default function NewPostForm() {
     handleSubmit,
     reset,
     watch,
+    setError,
+    clearErrors,
     formState: { errors },
-  } = useForm<PostRequest>({
-    resolver: zodResolver(PostRequestSchema),
+  } = useForm({
+    // No zodResolver — see Schedule.tsx for why (superRefine errors weren't
+    // reaching formState with this project's zod v4 + resolver combo).
+    // Validated by hand in the submit handler below instead.
     defaultValues: EMPTY,
   });
   const postType = watch("postType");
@@ -58,7 +61,20 @@ export default function NewPostForm() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 640 }}>
       <form
-        onSubmit={handleSubmit((data) => generateMutation.mutate(data))}
+        onSubmit={handleSubmit((data) => {
+          clearErrors();
+          const parsed = PostRequestSchema.safeParse(data);
+          if (!parsed.success) {
+            for (const issue of parsed.error.issues) {
+              const field = issue.path[0];
+              if (typeof field === "string") {
+                setError(field as FieldPath<typeof data>, { type: "custom", message: issue.message });
+              }
+            }
+            return;
+          }
+          generateMutation.mutate(parsed.data);
+        })}
         style={{ display: "flex", flexDirection: "column", gap: 16 }}
       >
         <Field label="글 종류">
@@ -111,6 +127,16 @@ export default function NewPostForm() {
               <input {...register("relatedPostUrl")} />
             </Field>
           </>
+        )}
+
+        {Object.keys(errors).length > 0 && (
+          <p style={{ color: "#b91c1c", fontSize: 13, margin: 0 }}>
+            입력을 확인해주세요:{" "}
+            {Object.values(errors)
+              .map((e) => e?.message)
+              .filter(Boolean)
+              .join(" / ")}
+          </p>
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

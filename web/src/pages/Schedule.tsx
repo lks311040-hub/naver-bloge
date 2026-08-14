@@ -1,6 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type FieldPath } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScheduleRequestSchema, type PostType, type ScheduleRecord, type ScheduleRequest } from "@app/shared";
 import { createSchedule, deleteSchedule, fetchSchedules, runScheduleNow, updateSchedule } from "../api/schedules";
@@ -49,9 +48,17 @@ export default function Schedule() {
     reset,
     watch,
     setValue,
+    setError,
+    clearErrors,
     formState: { errors },
-  } = useForm<ScheduleRequest>({
-    resolver: zodResolver(ScheduleRequestSchema),
+  } = useForm({
+    // Deliberately no zodResolver here — @hookform/resolvers' zod adapter
+    // was silently failing to surface superRefine-based custom errors with
+    // this project's zod v4 (validation correctly blocked bad submits, but
+    // formState.errors never populated, so the submit button looked
+    // "stuck" with zero feedback). Validating by hand with safeParse() in
+    // the submit handler below and feeding results through setError() is
+    // more code but behaves exactly as expected either way.
     defaultValues: { ...EMPTY, postTypes },
   });
   const topicSource = watch("topicSource");
@@ -113,13 +120,25 @@ export default function Schedule() {
         <h3>새 예약 등록</h3>
         <form
           onSubmit={handleSubmit((data) => {
+            clearErrors();
             const cronExpression = buildCronExpression(days, time);
-            createMutation.mutate({ ...data, postTypes, cronExpression });
+            const parsed = ScheduleRequestSchema.safeParse({ ...data, postTypes, cronExpression });
+            if (!parsed.success) {
+              for (const issue of parsed.error.issues) {
+                const field = issue.path[0];
+                if (typeof field === "string") {
+                  setError(field as FieldPath<typeof data>, { type: "custom", message: issue.message });
+                }
+              }
+              return;
+            }
+            createMutation.mutate(parsed.data);
           })}
           style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480 }}
         >
           <Field label="예약 이름">
             <input {...register("name")} placeholder="예: 월수금일 정보성 글" />
+            {errors.name && <span className="status-pill error">{String(errors.name.message)}</span>}
           </Field>
 
           <Field label="요일">
@@ -265,6 +284,17 @@ export default function Schedule() {
             <input type="checkbox" {...register("enabled")} defaultChecked />
             활성화
           </label>
+
+          {Object.keys(errors).length > 0 && (
+            <p style={{ color: "#b91c1c", fontSize: 13, margin: 0 }}>
+              입력을 확인해주세요:{" "}
+              {Object.values(errors)
+                .map((e) => e?.message)
+                .filter(Boolean)
+                .join(" / ")}
+            </p>
+          )}
+
           <div>
             <button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? "등록 중..." : "예약 등록"}
