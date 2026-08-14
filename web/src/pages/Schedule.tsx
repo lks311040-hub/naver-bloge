@@ -111,6 +111,14 @@ export default function Schedule() {
               {WEEKDAYS.map((d) => (
                 <label
                   key={d.value}
+                  onClick={(e) => {
+                    // Handle the toggle ourselves on the whole label (not just
+                    // the native checkbox's onChange) — the native checkbox
+                    // default-toggle didn't reliably fire from every click
+                    // source, so this doesn't depend on it at all.
+                    e.preventDefault();
+                    toggleDay(d.value);
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -119,15 +127,12 @@ export default function Schedule() {
                     padding: "4px 8px",
                     border: "1px solid #e5e7eb",
                     borderRadius: 6,
+                    cursor: "pointer",
+                    userSelect: "none",
                     background: days.includes(d.value) ? "#eef2ff" : undefined,
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={days.includes(d.value)}
-                    onChange={() => toggleDay(d.value)}
-                    style={{ margin: 0 }}
-                  />
+                  <input type="checkbox" checked={days.includes(d.value)} readOnly style={{ margin: 0 }} />
                   {d.label}
                 </label>
               ))}
@@ -144,23 +149,25 @@ export default function Schedule() {
 
           <Field label="예약 종류">
             <div style={{ display: "flex", gap: 16 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
-                <input
-                  type="radio"
-                  checked={topicSource === "fixed"}
-                  onChange={() => setValue("topicSource", "fixed")}
-                />
+              <label
+                onClick={(e) => {
+                  e.preventDefault();
+                  setValue("topicSource", "fixed");
+                }}
+                style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, cursor: "pointer", userSelect: "none" }}
+              >
+                <input type="radio" checked={topicSource === "fixed"} readOnly />
                 고정 주제 (홍보성/정보성, 매번 같은 제목·키워드)
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
-                <input
-                  type="radio"
-                  checked={topicSource === "queue"}
-                  onChange={() => {
-                    setValue("topicSource", "queue");
-                    setValue("postType", "informational");
-                  }}
-                />
+              <label
+                onClick={(e) => {
+                  e.preventDefault();
+                  setValue("topicSource", "queue");
+                  setValue("postType", "informational");
+                }}
+                style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, cursor: "pointer", userSelect: "none" }}
+              >
+                <input type="radio" checked={topicSource === "queue"} readOnly />
                 글감 큐 사용 (정보성, 매번 새 주제)
               </label>
             </div>
