@@ -6,12 +6,35 @@ import { NAVER_STORAGE_STATE_PATH } from "../../config/paths.js";
 import { saveNaverSession } from "../naver-session/repo.js";
 
 const LOGIN_URL = "https://nid.naver.com/nidlogin.login?url=https%3A%2F%2Fwww.naver.com%2F";
-// Matches ANY blog.naver.com URL carrying a blogId query param — not just
-// literally "MyBlog.naver" — since we're not 100% sure which page the
-// current logged-in landing flow uses. Deliberately NOT matching bare
-// `blog.naver.com/` with no blogId param (that also renders for the
-// logged-out/new feed UI and would be a false positive).
-const BLOG_ID_PATTERN = /blog\.naver\.com\/[^"'\s?]*\?[^"'\s]*blogId=([a-zA-Z0-9_-]+)/;
+
+/**
+ * "내 블로그" 바로가기. 예전에는 https://blog.naver.com/ 이 로그인한 사람의
+ * 블로그로 리다이렉트해줬지만, 지금은 남의 글이 뜨는 홈피드
+ * (section.blog.naver.com/BlogHome.naver)로 보낸다 — 그 페이지에는 내 blogId가
+ * 아예 없고, 대신 모르는 사람들의 blog.naver.com 링크만 잔뜩 있다. MyBlog.naver
+ * 는 여전히 내 블로그로 정확히 보내준다. (2026-08 라이브 확인)
+ */
+const MY_BLOG_URL = "https://blog.naver.com/MyBlog.naver";
+
+/**
+ * 리다이렉트가 끝난 주소 `https://blog.naver.com/<blogId>` 에서 아이디를 뽑는다.
+ * **페이지 URL에만** 쓸 것 — HTML에 이 형태를 적용하면 홈피드에 널린 남의
+ * 블로그 링크를 내 아이디로 착각한다.
+ */
+const BLOG_ID_IN_PATH = /^https?:\/\/blog\.naver\.com\/([a-zA-Z0-9_-]+)(?:[/?#]|$)/;
+
+/** `?blogId=xxx` 형태의 보조 경로. 내 블로그 페이지 안에서만 참고한다. */
+const BLOG_ID_IN_QUERY = /[?&]blogId=([a-zA-Z0-9_-]+)/;
+
+/** blog.naver.com/<여기>가 사람 아이디가 아닌, 네이버가 쓰는 고정 경로들. */
+const RESERVED_PATH_SEGMENTS = new Set([
+  "MyBlog",
+  "BlogHome",
+  "PostList",
+  "PostView",
+  "market",
+  "blogpeople",
+]);
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 const BLOG_ID_TIMEOUT_MS = 20 * 1000;
 const POLL_INTERVAL_MS = 1000;
@@ -104,13 +127,12 @@ async function runFreshLogin(page: Page, context: BrowserContext, log: LogFn): P
   }
 }
 
-/** Navigates to blog.naver.com and waits for the blogId to show up in the
- * URL/HTML. Returns undefined (never throws) if it doesn't within the
- * timeout — the caller decides what that means. */
+/** Navigates to the "내 블로그" shortcut and waits for the blogId to show up.
+ * Returns undefined (never throws) if it doesn't within the timeout — the
+ * caller decides what that means. */
 async function tryDetectBlogId(page: Page): Promise<string | undefined> {
-  await page.goto("https://blog.naver.com/", { waitUntil: "networkidle" }).catch(() => {
-    // networkidle can time out on pages with long-polling/analytics
-    // connections — the URL/content checks below still work either way.
+  await page.goto(MY_BLOG_URL, { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {
+    // 느린 로딩/애널리틱스로 타임아웃이 나도, 아래 URL 검사는 그대로 동작한다.
   });
   return waitForBlogIdRedirect(page, BLOG_ID_TIMEOUT_MS);
 }
@@ -125,17 +147,31 @@ async function waitForLoginCookie(context: BrowserContext, timeoutMs: number): P
   return false;
 }
 
-/** Checks both the current URL and the page's rendered HTML for a
- * blog.naver.com link carrying a blogId — whichever surfaces one first. */
+/**
+ * 리다이렉트가 끝나기를 기다리며 blogId를 찾는다. 순서가 중요하다:
+ *  1) 페이지 URL의 경로 — 가장 믿을 만하다. MyBlog.naver가 데려다준 곳이니
+ *     정의상 내 블로그다.
+ *  2) 페이지 URL의 ?blogId= 쿼리.
+ *  3) 마지막으로 HTML 안의 ?blogId= — 단, 내 블로그 도메인(blog.naver.com)에
+ *     있을 때만. 홈피드(section.blog.naver.com)에서 HTML을 뒤지면 남의 블로그를
+ *     내 것으로 착각할 수 있어서 아예 보지 않는다.
+ */
 async function waitForBlogIdRedirect(page: Page, timeoutMs: number): Promise<string | undefined> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const urlMatch = BLOG_ID_PATTERN.exec(page.url());
-    if (urlMatch) return urlMatch[1];
+    const url = page.url();
 
-    const html = await page.content().catch(() => "");
-    const htmlMatch = BLOG_ID_PATTERN.exec(html);
-    if (htmlMatch) return htmlMatch[1];
+    const pathMatch = BLOG_ID_IN_PATH.exec(url);
+    if (pathMatch && !RESERVED_PATH_SEGMENTS.has(pathMatch[1]!)) return pathMatch[1];
+
+    const queryMatch = BLOG_ID_IN_QUERY.exec(url);
+    if (queryMatch) return queryMatch[1];
+
+    if (url.startsWith("https://blog.naver.com/")) {
+      const html = await page.content().catch(() => "");
+      const htmlMatch = BLOG_ID_IN_QUERY.exec(html);
+      if (htmlMatch) return htmlMatch[1];
+    }
 
     await sleep(500);
   }
