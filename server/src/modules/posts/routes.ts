@@ -10,6 +10,7 @@ import { createAndGenerate, regeneratePost } from "./service.js";
 import { setBlockMedia, updateLinkBlock } from "./blockOps.js";
 import { approvePost, getPost, listPosts, markPostPublished } from "./repo.js";
 import { enqueueEditorAutofill } from "../automation/editorAutofill.js";
+import { getNaverSession } from "../naver-session/repo.js";
 
 export const postsRouter = Router();
 
@@ -136,6 +137,21 @@ postsRouter.post("/:id/autofill", (req, res) => {
     res.status(404).json({ error: "not_found" });
     return;
   }
+  // 로그인 여부만은 enqueue 전에 미리 본다. 아래는 fire-and-forget이라 실행이
+  // 곧바로 실패하면 그 사유가 progressBus로만 나가는데, 클라이언트는 202를 받은
+  // *뒤에야* SSE를 구독한다. progressBus는 버퍼가 없어서(emit-to-nobody) 그
+  // 사이에 나간 로그는 그냥 사라지고, 화면에는 버튼을 눌러도 아무 일도 안
+  // 일어난 것처럼 보인다 — 실제로 이것 때문에 한참 헤맸다. 미리 검사해서 HTTP
+  // 에러로 돌려주면 react-query의 error 상태로 화면에 그대로 뜬다.
+  const session = getNaverSession();
+  if (!session.blogId || !session.storageStatePath || !fs.existsSync(session.storageStatePath)) {
+    res.status(409).json({
+      error: "not_logged_in",
+      message: "네이버 로그인이 필요합니다. 홈 화면의 '네이버 로그인' 버튼을 먼저 눌러주세요.",
+    });
+    return;
+  }
+
   const runId = randomUUID();
   enqueueEditorAutofill(req.params.id!, runId).catch((err) => {
     console.error("[autofill] unexpected failure outside the run's own error handling:", err);
