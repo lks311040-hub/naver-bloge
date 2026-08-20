@@ -1,12 +1,14 @@
 import { useEffect, type ReactNode } from "react";
 import { useForm, type FieldPath } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BusinessProfileSchema, type BusinessProfile } from "@app/shared";
+import { BusinessProfileSchema, DEFAULT_ATTACHMENTS, type BusinessProfile } from "@app/shared";
 import { fetchBusinessProfile, saveBusinessProfile } from "../api/businessProfile";
+import AttachmentDashboard from "./AttachmentDashboard";
 
 const EMPTY: BusinessProfile = {
   name: "",
   address: "",
+  addressUrl: "",
   strengths: "",
   notes: "",
   greeting: "",
@@ -14,6 +16,7 @@ const EMPTY: BusinessProfile = {
   reservationUrl: "",
   styleSample: "",
   hashtags: "",
+  attachments: DEFAULT_ATTACHMENTS,
 };
 
 const FIELD_ROWS = 3;
@@ -28,6 +31,8 @@ export default function BusinessProfileForm() {
     reset,
     setError,
     clearErrors,
+    watch,
+    setValue,
     formState: { isDirty, isSubmitSuccessful, errors },
   } = useForm({
     // No zodResolver — see Schedule.tsx for why. Validated by hand below.
@@ -99,6 +104,19 @@ export default function BusinessProfileForm() {
       <Field label="네이버 예약(플레이스) 링크">
         <input {...register("reservationUrl")} placeholder="https://booking.naver.com/..." />
       </Field>
+      <Field label="주소 링크 (네이버 지도/플레이스 — 글에 '오시는 길'로 붙습니다)">
+        <input {...register("addressUrl")} placeholder="https://naver.me/..." />
+      </Field>
+
+      <AttachmentDashboard
+        value={watch("attachments")}
+        onChange={(next) => setValue("attachments", next, { shouldDirty: true })}
+        urls={{
+          talktalk: watch("talktalkUrl"),
+          reservation: watch("reservationUrl"),
+          address: watch("addressUrl"),
+        }}
+      />
       <Field label="내 말투 샘플 (선택 — 예전 블로그 글을 붙여넣으면 참고)">
         <textarea rows={6} {...register("styleSample")} />
       </Field>

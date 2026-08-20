@@ -60,7 +60,7 @@ export const EmoticonPlaceholderBlock = z.object({
 export const LinkBlock = z.object({
   id: blockId,
   type: z.literal("link_block"),
-  kind: z.enum(["talktalk", "related_post", "reservation"]),
+  kind: z.enum(["talktalk", "related_post", "reservation", "address"]),
   label: z.string(),
   url: z.string(),
 });

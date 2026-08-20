@@ -7,7 +7,8 @@ import { updateLinkBlock, uploadBlockMedia } from "../../api/posts";
 const LINK_KIND_LABEL: Record<string, string> = {
   talktalk: "네이버 톡톡",
   related_post: "함께 읽으면 좋은 글",
-  reservation: "예약/오시는 길",
+  reservation: "예약",
+  address: "오시는 길",
 };
 
 interface BlockRendererProps {
