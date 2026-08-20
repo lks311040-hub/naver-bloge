@@ -16,8 +16,8 @@ export interface AssemblePostInput {
  * 관련글 link_block → 해시태그.
  *
  * 정보성 (per user decision — 광고색을 진하게 만들 요소는 뺀다): 인사말 → AI
- * 본문 → 직접쓴글 → 해시태그만. 톡톡/예약(장소위젯)/관련글은 붙이지 않는다 —
- * 홈피드 노출을 노리는 글에 영업 느낌이 섞이면 역효과라는 이유.
+ * 본문 → 직접쓴글 → 해시태그만. 톡톡/예약/관련글은 붙이지 않는다 — 홈피드
+ * 노출을 노리는 글에 영업 느낌이 섞이면 역효과라는 이유.
  *
  * Any step whose source field is empty is simply omitted (e.g. no
  * reservation URL registered yet -> no reservation block), rather than
