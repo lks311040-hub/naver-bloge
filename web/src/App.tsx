@@ -7,7 +7,7 @@ import Schedule from "./pages/Schedule";
 import PublishHistory from "./pages/PublishHistory";
 
 const NAV_ITEMS = [
-  { to: "/", label: "홍보글 작성", end: true },
+  { to: "/", label: "글 작성", end: true },
   { to: "/keywords", label: "글감 메모장" },
   { to: "/drafts", label: "초안" },
   { to: "/schedule", label: "예약" },

@@ -29,7 +29,7 @@ export default function Home() {
 
   return (
     <div>
-      <h2>홍보글 작성</h2>
+      <h2>글 작성</h2>
       <p>
         서버 상태:{" "}
         {health.status === "loading" && <span className="status-pill">확인 중...</span>}
@@ -59,7 +59,7 @@ export default function Home() {
       </section>
 
       <section>
-        <h3>새 홍보글 작성</h3>
+        <h3>새 글 작성</h3>
         <NewPostForm />
       </section>
     </div>

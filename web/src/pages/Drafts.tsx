@@ -33,7 +33,7 @@ export default function Drafts() {
         <p className="status-pill error">목록을 불러오지 못했습니다: {String(postsQuery.error)}</p>
       )}
       {postsQuery.data && postsQuery.data.length === 0 && (
-        <p style={{ color: "#6b7280" }}>아직 작성된 글이 없습니다. 홍보글 작성 화면에서 새 글을 만들어보세요.</p>
+        <p style={{ color: "#6b7280" }}>아직 작성된 글이 없습니다. 글 작성 화면에서 새 글을 만들어보세요.</p>
       )}
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
         <tbody>
