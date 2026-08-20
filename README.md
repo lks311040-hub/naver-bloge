@@ -35,6 +35,12 @@ npm run dev
 
 `server`(Express, :4000)와 `web`(Vite, :5173)이 동시에 뜹니다. 브라우저에서 **http://localhost:5173** 접속.
 
+이미 다른 곳에서 앱을 켜둔 채로(예: git worktree에서 새 기능을 비교해볼 때) 하나 더 띄우려면 포트를 바꿔 실행합니다. `PORT`는 Express 포트, `API_PORT`는 Vite가 프록시할 대상 포트라 **둘을 같은 값으로** 줘야 합니다 (Vite 자신은 5173이 막혀 있으면 알아서 다음 포트를 잡습니다):
+
+```bash
+PORT=4001 API_PORT=4001 npm run dev
+```
+
 > **Windows 참고**: 처음에는 `concurrently` 패키지로 세 프로세스(shared/server/web)를 띄웠는데, 이 개발 환경에서 `concurrently`가 `tsx watch`(server) 자식 프로세스의 stdout을 파이프로 가로채는 과정에서 간헐적으로 완전히 멈춰버리는 문제가 있었습니다 (shared/web은 항상 정상 출력됐지만 server만 응답이 없었고, 포트도 끝내 열리지 않았습니다). 그래서 `concurrently`를 걷어내고 [`scripts/dev.mjs`](scripts/dev.mjs)라는 자체 오케스트레이터로 교체했습니다 — `node`로 세 프로세스를 직접 `stdio: 'inherit'`로 실행해 파이프 캡처 자체를 없앴습니다. 로그가 프리픽스 없이 섞여 나오는 대신, 안정적으로 매번 뜹니다.
 
 ## 사용 흐름
