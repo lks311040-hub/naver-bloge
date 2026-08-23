@@ -51,6 +51,17 @@ export function markPostPublished(postId: string, publishedUrl: string): Promise
   });
 }
 
+export interface DetectPublishedResult {
+  matched: { postId: string; title: string; publishedUrl: string; how: "exact" | "prefix" }[];
+  unmatchedTitles: string[];
+  feedCount: number;
+}
+
+/** 블로그를 읽어 "발행 대기" 글이 이미 올라갔는지 확인하고 주소를 자동 기록. */
+export function detectPublishedPosts(): Promise<DetectPublishedResult> {
+  return apiFetch<DetectPublishedResult>("/api/posts/detect-published", { method: "POST" });
+}
+
 export function regeneratePost(postId: string): Promise<{ ok: boolean }> {
   return apiFetch<{ ok: boolean }>(`/api/posts/${postId}/regenerate`, { method: "POST" });
 }

@@ -11,6 +11,7 @@ import { setBlockMedia, updateLinkBlock } from "./blockOps.js";
 import { approvePost, getPost, listPosts, markPostPublished } from "./repo.js";
 import { enqueueEditorAutofill } from "../automation/editorAutofill.js";
 import { getNaverSession } from "../naver-session/repo.js";
+import { detectPublishedPosts } from "./detectPublished.js";
 
 export const postsRouter = Router();
 
@@ -157,6 +158,20 @@ postsRouter.post("/:id/autofill", (req, res) => {
     console.error("[autofill] unexpected failure outside the run's own error handling:", err);
   });
   res.status(202).json({ runId });
+});
+
+// 예약 발행을 걸어두고 창을 닫으면 붙여넣을 주소가 없어서 "발행 대기"에 그대로
+// 묶인다. 블로그 공개 RSS를 읽어 제목이 같은 글을 찾아 주소를 대신 채워준다.
+// Playwright/로그인을 쓰지 않으므로 automationQueue와 무관하다.
+postsRouter.post("/detect-published", (_req, res) => {
+  detectPublishedPosts()
+    .then((result) => res.json(result))
+    .catch((err) => {
+      res.status(502).json({
+        error: "detect_failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    });
 });
 
 const MarkPublishedSchema = z.object({ publishedUrl: z.string().min(1) });
