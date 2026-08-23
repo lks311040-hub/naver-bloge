@@ -3,7 +3,7 @@ import cors from "cors";
 import { runMigrations } from "./db/migrate.js";
 import { ensureDataDirs, UPLOADS_DIR } from "./config/paths.js";
 import { businessProfileRouter } from "./modules/business-profile/index.js";
-import { postsRouter } from "./modules/posts/index.js";
+import { postsRouter, startPublishWatcher } from "./modules/posts/index.js";
 import { naverSessionRouter } from "./modules/naver-session/index.js";
 import { sseRouter } from "./modules/sse/index.js";
 import { schedulerRouter, startScheduler } from "./modules/scheduler/index.js";
@@ -31,6 +31,7 @@ app.use("/api/kakao", kakaoRouter);
 app.use("/media", express.static(UPLOADS_DIR));
 
 startScheduler();
+startPublishWatcher();
 
 const PORT = Number(process.env.PORT ?? 4000);
 app.listen(PORT, () => {
