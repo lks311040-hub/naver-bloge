@@ -83,6 +83,10 @@ export default function DraftReview() {
   const autofillInProgress = post.status === "filling";
   const failedAtGeneration = post.status === "failed" && post.blocks.length === 0;
   const failedAtAutofill = post.status === "failed" && post.blocks.length > 0;
+  // 자동입력을 이미 한 번 한 글. 그날 열린 에디터 창을 닫아버렸거나 발행을
+  // 미뤄뒀으면 다시 열 방법이 없어서 글이 그대로 묶여 있었다 — 밀린 글을
+  // 하나씩 처리하려면 여기서 다시 열 수 있어야 한다.
+  const alreadyFilled = post.status === "filled_awaiting_publish";
 
   return (
     <div>
@@ -139,19 +143,27 @@ export default function DraftReview() {
         </div>
       )}
 
-      {(post.status === "ready" || autofillInProgress || failedAtAutofill) && (
+      {(post.status === "ready" || autofillInProgress || failedAtAutofill || alreadyFilled) && (
         <div style={{ marginTop: 24 }}>
           <p style={{ color: "#6b7280", fontSize: 14 }}>
             네이버 블로그 글쓰기 화면을 열어 제목·본문·서식·사진/영상을 자동으로 채워 넣습니다. 발행 버튼은
             누르지 않으니, 채워진 내용을 확인하고 <strong>직접 발행</strong>해주세요.
             {failedAtAutofill && " 지난 시도가 중간에 실패했습니다 — 다시 시도하면 처음부터 새로 채워 넣습니다."}
+            {alreadyFilled &&
+              " 이 글은 전에 한 번 에디터에 넣었던 글입니다 — 다시 열면 빈 글쓰기 화면에 처음부터 새로 채워 넣습니다 (네이버에 남아있는 임시저장을 이어쓰지 않습니다)."}
           </p>
           <button
             type="button"
             onClick={() => autofillMutation.mutate()}
             disabled={autofillMutation.isPending || autofillInProgress}
           >
-            {autofillInProgress ? "자동입력 진행 중..." : failedAtAutofill ? "자동입력 다시 시도" : "네이버 에디터에 자동입력"}
+            {autofillInProgress
+              ? "자동입력 진행 중..."
+              : failedAtAutofill
+                ? "자동입력 다시 시도"
+                : alreadyFilled
+                  ? "네이버 에디터에 다시 열기"
+                  : "네이버 에디터에 자동입력"}
           </button>
           {autofillMutation.isError && (
             <span className="status-pill error" style={{ marginLeft: 12 }}>
