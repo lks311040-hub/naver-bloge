@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { KeywordIdeaRecord, PostType } from "@app/shared";
 import { createKeywordIdea, deleteKeywordIdea, fetchKeywordIdeas } from "../api/keywordIdeas";
@@ -139,9 +140,19 @@ function IdeaGroup({
               <strong>{idea.text}</strong>
               {idea.memo && <div style={{ color: "#6b7280", fontSize: 12 }}>{idea.memo}</div>}
             </div>
-            <button type="button" onClick={() => onDelete(idea.id)}>
-              삭제
-            </button>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              {/* 글감을 손으로 옮겨 적지 않아도 되게 글 작성 화면으로 값을 넘긴다.
+                  글 종류/본문은 쿼리로 전달하고, ideaId는 초안이 만들어진 뒤
+                  이 글감을 사용됨으로 표시하는 데 쓴다. */}
+              <Link
+                to={`/?ideaId=${encodeURIComponent(idea.id)}&postType=${idea.postType}&text=${encodeURIComponent(idea.text)}`}
+              >
+                <button type="button">이 글감으로 쓰기</button>
+              </Link>
+              <button type="button" onClick={() => onDelete(idea.id)}>
+                삭제
+              </button>
+            </div>
           </li>
         ))}
       </ul>

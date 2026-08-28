@@ -81,3 +81,25 @@ export function consumeNextKeywordIdea(postType: PostType): { id: string; text: 
 export function linkKeywordIdeaToPost(ideaId: string, postId: string): void {
   getDb().prepare(`UPDATE keyword_ideas SET used_by_post_id = ? WHERE id = ?`).run(postId, ideaId);
 }
+
+/**
+ * 사람이 글감 메모장에서 "이 글감으로 쓰기"를 눌러 직접 초안을 만든 경우.
+ * 예약(큐)이 소비하는 consumeNextKeywordIdea와 달리 **어떤 글감인지 지정**해서
+ * 표시한다 — 안 그러면 나중에 예약이 같은 글감을 또 꺼내 쓰면서 같은 주제의
+ * 글이 두 번 생성된다.
+ *
+ * 이미 사용된 글감은 used_at을 덮어쓰지 않는다 (처음 쓴 시점이 기록으로 남게).
+ */
+export function markKeywordIdeaUsed(ideaId: string, postId: string): KeywordIdeaRecord | undefined {
+  const db = getDb();
+  db.prepare(
+    `UPDATE keyword_ideas
+        SET used_at = COALESCE(used_at, datetime('now')),
+            used_by_post_id = ?
+      WHERE id = ?`,
+  ).run(postId, ideaId);
+  const row = db
+    .prepare(`SELECT ${SELECT_COLUMNS} FROM keyword_ideas WHERE id = ?`)
+    .get(ideaId) as KeywordIdeaRow | undefined;
+  return row ? rowToRecord(row) : undefined;
+}

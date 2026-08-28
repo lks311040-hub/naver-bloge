@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { useForm, type FieldPath } from "react-hook-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { PostRequestSchema, type PostRequest } from "@app/shared";
+import { Link, useSearchParams } from "react-router-dom";
+import { POST_TYPES, PostRequestSchema, type PostRequest, type PostType } from "@app/shared";
 import { fetchPost, generatePost } from "../api/posts";
+import { markKeywordIdeaUsed } from "../api/keywordIdeas";
 
 const EMPTY: PostRequest = {
   postType: "promotional",
@@ -17,8 +18,27 @@ const EMPTY: PostRequest = {
 
 const IN_PROGRESS_STATUSES = new Set(["queued", "generating"]);
 
+/**
+ * 글감 메모장의 "이 글감으로 쓰기"가 넘겨준 값을 폼 초기값으로 바꾼다.
+ * 홍보성 글감은 제목으로 그대로 쓰이고, 정보성 글감은 AI가 제목을 새로 지을
+ * 주제 키워드 자리에 들어간다 (글감 메모장의 원래 규칙과 같다).
+ */
+function initialValuesFromQuery(params: URLSearchParams): PostRequest {
+  const raw = params.get("postType");
+  const postType: PostType = POST_TYPES.includes(raw as PostType) ? (raw as PostType) : "promotional";
+  const text = params.get("text") ?? "";
+  if (!text) return { ...EMPTY, postType };
+  return postType === "informational"
+    ? { ...EMPTY, postType, keyword: text }
+    : { ...EMPTY, postType, title: text };
+}
+
 export default function NewPostForm() {
   const [activePostId, setActivePostId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // 초안이 만들어지면 이 글감을 사용됨으로 표시해야 해서 id를 들고 있는다.
+  const [pendingIdeaId] = useState<string | null>(() => searchParams.get("ideaId"));
+  const [usedIdea, setUsedIdea] = useState(false);
 
   const {
     register,
@@ -32,7 +52,9 @@ export default function NewPostForm() {
     // No zodResolver — see Schedule.tsx for why (superRefine errors weren't
     // reaching formState with this project's zod v4 + resolver combo).
     // Validated by hand in the submit handler below instead.
-    defaultValues: EMPTY,
+    // useState 초기화처럼 첫 렌더에서 한 번만 읽는다 — 아래에서 쿼리를 지워도
+    // 사용자가 입력하던 값이 날아가지 않는다.
+    defaultValues: initialValuesFromQuery(searchParams),
   });
   const postType = watch("postType");
   const isInformational = postType === "informational";
@@ -42,6 +64,19 @@ export default function NewPostForm() {
     onSuccess: (post) => {
       setActivePostId(post.id);
       reset({ ...EMPTY, postType });
+      // 초안이 실제로 만들어진 뒤에만 글감을 소진 처리한다. 표시해두지 않으면
+      // 나중에 예약(큐)이 같은 글감을 또 꺼내 써서 같은 주제가 두 번 나온다.
+      // 표시에 실패해도 초안 생성 자체는 이미 성공했으므로 화면을 막지 않는다.
+      if (pendingIdeaId) {
+        markKeywordIdeaUsed(pendingIdeaId, post.id)
+          .then(() => setUsedIdea(true))
+          .catch(() => setUsedIdea(false));
+      }
+      // 주소창에 남은 글감 파라미터를 지운다 — 새로고침하면 같은 글감이 다시
+      // 채워져서 중복 생성으로 이어지기 쉽다.
+      if (searchParams.has("ideaId") || searchParams.has("text")) {
+        setSearchParams({}, { replace: true });
+      }
     },
   });
 
@@ -146,6 +181,7 @@ export default function NewPostForm() {
           {generateMutation.isError && (
             <span className="status-pill error">요청 실패: {String(generateMutation.error)}</span>
           )}
+          {usedIdea && <span className="status-pill ok">글감을 사용됨으로 표시했습니다</span>}
         </div>
       </form>
 
